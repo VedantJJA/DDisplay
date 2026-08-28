@@ -178,9 +178,6 @@
                         </TextBlock>
                     </Border>
 
-                    <Button Content="Toggle Display" Style="{StaticResource SecondaryButton}"
-                            HorizontalAlignment="Left" Margin="0,0,0,14" Click="ToggleDisplay_Click"/>
-
                     <TextBlock Text="The display dynamically activates when your mobile device connects and automatically disconnects on exit."
                                Style="{StaticResource TextCaption}" TextWrapping="Wrap"/>
                 </StackPanel>
