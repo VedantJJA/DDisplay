@@ -9,7 +9,7 @@ using DDisplay.VddControl.Models;
 namespace DDisplay.Core;
 
 /// <summary>
-/// Coordinates session communications, handshake, test data transfer, and stream pipeline.
+/// Coordinates session communications, handshake, test data transfer, live screenshot streaming, and video pipelines.
 /// </summary>
 public sealed class SessionCoordinator : IAsyncDisposable
 {
@@ -25,6 +25,7 @@ public sealed class SessionCoordinator : IAsyncDisposable
     private long _lastRttMs;
     private long _expectedSeq = 1;
     private long _packetLossCount;
+    private Task? _screenshotLoopTask;
 
     public bool IsStreaming => _isStreaming;
     public int ActiveWidth { get; private set; }
@@ -64,6 +65,10 @@ public sealed class SessionCoordinator : IAsyncDisposable
                 {
                     await HandleHelloAsync(hello);
                 }
+            }
+            else if (e.MessageType == "request-screenshot")
+            {
+                await SendScreenshotAsync();
             }
             else if (e.MessageType == "start-stream")
             {
@@ -145,6 +150,24 @@ public sealed class SessionCoordinator : IAsyncDisposable
         await _transport.SendControlMessageAsync(ack);
     }
 
+    public async Task SendScreenshotAsync()
+    {
+        try
+        {
+            var jpegBytes = GdiScreenshotCapture.CaptureDesktopJpeg(quality: 75, captureAllScreens: true);
+            var base64 = Convert.ToBase64String(jpegBytes);
+            var msg = new ScreenshotMessage
+            {
+                ImageBase64 = base64,
+                Width = ActiveWidth > 0 ? ActiveWidth : 1920,
+                Height = ActiveHeight > 0 ? ActiveHeight : 1080,
+                TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            };
+            await _transport.SendControlMessageAsync(msg);
+        }
+        catch { }
+    }
+
     public async Task StartLiveStreamAsync(int width, int height)
     {
         int targetWidth = Math.Max(width, height);
@@ -172,14 +195,27 @@ public sealed class SessionCoordinator : IAsyncDisposable
         }
         catch { }
 
-        // Allow Windows display manager to register virtual monitor
-        await Task.Delay(1000);
-
-        // 2. Start Capture & Encoding Pipeline
         _sessionCts?.Cancel();
         _sessionCts = new CancellationTokenSource();
         var token = _sessionCts.Token;
 
+        _isStreaming = true;
+        StreamingStateChanged?.Invoke(this, true);
+
+        // 2. Send initial screenshot immediately so Android never has a black screen
+        await SendScreenshotAsync();
+
+        // 3. Start live screenshot feed loop (continuous screenshot streaming at ~5-10 FPS)
+        _screenshotLoopTask = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested && _isStreaming)
+            {
+                await SendScreenshotAsync();
+                await Task.Delay(250, token);
+            }
+        }, token);
+
+        // 4. Also start DXGI hardware capture in background
         try
         {
             await _captureEngine.InitializeAsync(string.Empty, token);
@@ -188,27 +224,9 @@ public sealed class SessionCoordinator : IAsyncDisposable
             _captureEngine.FrameAvailable += OnFrameCaptured;
             _encoder.FrameEncoded += OnFrameEncoded;
 
-            _isStreaming = true;
-            StreamingStateChanged?.Invoke(this, true);
-
             _ = Task.Run(() => _captureEngine.StartCaptureAsync(token), token);
-
-            // Send HelloAck confirmation
-            var ack = new HelloAckMessage
-            {
-                VirtualDisplayWidthPx = targetWidth,
-                VirtualDisplayHeightPx = targetHeight,
-                RefreshRateHz = 60,
-                Codec = "video/avc",
-                BitrateKbps = 8000,
-            };
-            await _transport.SendControlMessageAsync(ack, token);
         }
-        catch
-        {
-            _isStreaming = false;
-            StreamingStateChanged?.Invoke(this, false);
-        }
+        catch { }
     }
 
     private async void OnFrameCaptured(object? sender, CaptureFrameEventArgs e)

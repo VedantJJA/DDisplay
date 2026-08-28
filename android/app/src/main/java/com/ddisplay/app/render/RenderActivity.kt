@@ -1,6 +1,9 @@
 package com.ddisplay.app.render
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.util.Base64
 import android.view.SurfaceHolder
 import android.view.View
 import android.view.WindowInsets
@@ -10,17 +13,25 @@ import androidx.appcompat.app.AppCompatActivity
 import com.ddisplay.app.databinding.ActivityRenderBinding
 import com.ddisplay.app.decode.MediaCodecDecoder
 import com.ddisplay.app.input.TouchCapture
+import com.ddisplay.app.protocol.ControlMessages
+import com.ddisplay.app.protocol.MessageType
 import com.ddisplay.app.transport.SocketTransport
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 /**
- * Full-screen activity for rendering the decoded video stream.
- * Renders hardware-decoded frames directly onto SurfaceView.
+ * Full-screen activity for rendering the Windows desktop display.
+ * Supports both high-fidelity JPEG screenshot frames and MediaCodec H.264 stream.
  */
 class RenderActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityRenderBinding
     private var decoder: MediaCodecDecoder? = null
     private var touchCapture: TouchCapture? = null
+    private val scope = CoroutineScope(Dispatchers.Main)
+    private var currentBitmap: Bitmap? = null
 
     companion object {
         var activeTransport: SocketTransport? = null
@@ -36,15 +47,25 @@ class RenderActivity : AppCompatActivity() {
 
         enterImmersiveMode()
 
-        val transport = activeTransport ?: run { 
+        val transport = activeTransport ?: run {
             finish()
-            return 
+            return
         }
 
         transport.onDisconnected = {
             runOnUiThread {
                 finish()
             }
+        }
+
+        // Handle incoming screenshot control messages
+        transport.onControlMessageReceived = { json ->
+            handleControlMessage(json)
+        }
+
+        // Request initial screenshot immediately
+        scope.launch(Dispatchers.IO) {
+            transport.sendControlMessage(ControlMessages.requestScreenshot())
         }
 
         binding.surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
@@ -60,9 +81,9 @@ class RenderActivity : AppCompatActivity() {
 
                 val tc = TouchCapture(transport)
                 touchCapture = tc
-                binding.surfaceView.setOnTouchListener(tc)
+                binding.ivScreenshot.setOnTouchListener(tc)
 
-                binding.surfaceView.setOnClickListener {
+                binding.ivScreenshot.setOnClickListener {
                     val hud = binding.hudOverlay
                     hud.visibility = if (hud.visibility == View.VISIBLE) View.GONE else View.VISIBLE
                 }
@@ -81,9 +102,37 @@ class RenderActivity : AppCompatActivity() {
         binding.hudOverlay.visibility = View.GONE
         binding.tvHudResolution.text = "${displayWidthPx}x${displayHeightPx}"
 
+        binding.btnRefreshScreenshot.setOnClickListener {
+            scope.launch(Dispatchers.IO) {
+                transport.sendControlMessage(ControlMessages.requestScreenshot())
+            }
+        }
+
         binding.btnStopStreaming.setOnClickListener {
-            transport.disconnect()
+            scope.launch(Dispatchers.IO) {
+                transport.sendControlMessage(ControlMessages.stopStream())
+            }
             finish()
+        }
+    }
+
+    private fun handleControlMessage(json: JSONObject) {
+        val type = json.optString("type")
+        if (type == MessageType.SCREENSHOT) {
+            val base64 = json.optString("imageBase64")
+            if (base64.isNotEmpty()) {
+                try {
+                    val imageBytes = Base64.decode(base64, Base64.DEFAULT)
+                    val bmp = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                    if (bmp != null) {
+                        runOnUiThread {
+                            binding.ivScreenshot.setImageBitmap(bmp)
+                            currentBitmap?.recycle()
+                            currentBitmap = bmp
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -91,6 +140,8 @@ class RenderActivity : AppCompatActivity() {
         activeTransport?.onMediaFrameReceived = null
         decoder?.release()
         decoder = null
+        currentBitmap?.recycle()
+        currentBitmap = null
         super.onDestroy()
     }
 

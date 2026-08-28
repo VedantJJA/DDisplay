@@ -11,6 +11,8 @@ object MessageType {
     const val HELLO_ACK = "hello-ack"
     const val START_STREAM = "start-stream"
     const val STOP_STREAM = "stop-stream"
+    const val SCREENSHOT = "screenshot"
+    const val REQUEST_SCREENSHOT = "request-screenshot"
     const val PAIR_REQUEST = "pair-request"
     const val PAIR_CONFIRM = "pair-confirm"
     const val TOUCH = "touch"
@@ -57,6 +59,11 @@ object ControlMessages {
 
     fun stopStream(): JSONObject = JSONObject().apply {
         put("type", MessageType.STOP_STREAM)
+        put("protocolVersion", 1)
+    }
+
+    fun requestScreenshot(): JSONObject = JSONObject().apply {
+        put("type", MessageType.REQUEST_SCREENSHOT)
         put("protocolVersion", 1)
     }
 

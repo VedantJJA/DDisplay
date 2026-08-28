@@ -76,6 +76,28 @@ public sealed class StopStreamMessage : ControlMessage
     public override string Type => "stop-stream";
 }
 
+public sealed class ScreenshotMessage : ControlMessage
+{
+    public override string Type => "screenshot";
+
+    [JsonPropertyName("imageBase64")]
+    public string ImageBase64 { get; set; } = string.Empty;
+
+    [JsonPropertyName("width")]
+    public int Width { get; set; }
+
+    [JsonPropertyName("height")]
+    public int Height { get; set; }
+
+    [JsonPropertyName("timestampMs")]
+    public long TimestampMs { get; set; }
+}
+
+public sealed class RequestScreenshotMessage : ControlMessage
+{
+    public override string Type => "request-screenshot";
+}
+
 public sealed class HelloAckMessage : ControlMessage
 {
     public override string Type => "hello-ack";

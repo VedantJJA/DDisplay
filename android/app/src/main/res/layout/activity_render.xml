@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Full-screen layout for streaming. SurfaceView fills the entire screen. -->
+<!-- Full-screen layout for streaming. Supports both SurfaceView video and ImageView screenshot rendering. -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -11,6 +11,14 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_gravity="center"/>
+
+    <ImageView
+        android:id="@+id/ivScreenshot"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:scaleType="fitCenter"
+        android:visibility="visible"/>
 
     <!-- Overlay HUD: tap to toggle visibility -->
     <LinearLayout
@@ -38,13 +46,22 @@
             android:textSize="11sp"/>
 
         <Button
+            android:id="@+id/btnRefreshScreenshot"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Refresh"
+            android:textSize="11sp"
+            android:backgroundTint="@color/color_accent"
+            android:layout_marginTop="6dp"/>
+
+        <Button
             android:id="@+id/btnStopStreaming"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Stop"
             android:textSize="11sp"
             android:backgroundTint="@color/color_error"
-            android:layout_marginTop="8dp"/>
+            android:layout_marginTop="6dp"/>
 
     </LinearLayout>
 
