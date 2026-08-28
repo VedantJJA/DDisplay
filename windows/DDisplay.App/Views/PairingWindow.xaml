@@ -1,0 +1,49 @@
+<Window x:Class="DDisplay.App.Views.PairingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Pair a Device"
+        Width="420" Height="520"
+        ResizeMode="NoResize"
+        Style="{StaticResource AppWindow}"
+        WindowStartupLocation="CenterOwner">
+
+    <Grid Margin="28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Pair a Device" Style="{StaticResource TextHeadline}"/>
+
+        <!-- QR code area -->
+        <Border Grid.Row="2" Style="{StaticResource Card}" HorizontalAlignment="Center">
+            <StackPanel HorizontalAlignment="Center">
+                <Image x:Name="QrImage" Width="200" Height="200" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                <TextBlock x:Name="PairingCodeText"
+                           Text="------" FontSize="32" FontWeight="Bold" LetterSpacing="6"
+                           Foreground="{StaticResource AccentBrush}"
+                           HorizontalAlignment="Center" Margin="0,12,0,0"
+                           FontFamily="{StaticResource FontMain}"/>
+                <TextBlock Text="Enter this code in the DDisplay Android app"
+                           Style="{StaticResource TextCaption}" HorizontalAlignment="Center"
+                           Margin="0,6,0,0" TextAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Manual IP entry -->
+        <StackPanel Grid.Row="4">
+            <TextBlock Text="Or enter IP manually on Android" Style="{StaticResource TextCaption}" Margin="0,0,0,6"/>
+            <TextBox x:Name="IpAddressBox" Style="{StaticResource InputBox}"
+                     IsReadOnly="True" Text="Detecting..."/>
+        </StackPanel>
+
+        <!-- Close -->
+        <Button Grid.Row="6" Content="Done" Style="{StaticResource PrimaryButton}"
+                HorizontalAlignment="Right" Click="Done_Click"/>
+    </Grid>
+</Window>

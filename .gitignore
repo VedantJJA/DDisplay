@@ -1,0 +1,67 @@
+# Windows / .NET
+*.user
+*.suo
+*.vs/
+.vs/
+bin/
+obj/
+*.nupkg
+*.snupkg
+*.log
+*.cache
+TestResults/
+artifacts/
+
+# Visual Studio
+.vscode/settings.json
+*.DotSettings.user
+*.VC.db
+*.VC.VC.opendb
+*.VC.opendb
+
+# MSBuild
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.binlog
+
+# NuGet
+packages/
+*.lock.json
+!packages.lock.json
+
+# Rider
+.idea/
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/build/
+android/build/
+android/*.iml
+android/**/*.iml
+android/.idea/
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+android/keystore.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+ehthumbs.db
+
+# ADB / platform-tools (bundled binaries are in version control, build outputs are not)
+windows/DDisplay.App/platform-tools/*.exe
+windows/DDisplay.App/platform-tools/*.dll
+
+# Secrets
+*.pfx
+*.p12
+appsettings.Development.json

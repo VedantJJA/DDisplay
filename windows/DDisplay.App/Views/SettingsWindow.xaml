@@ -1,0 +1,121 @@
+<Window x:Class="DDisplay.App.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:DDisplay.App.ViewModels"
+        Title="Settings"
+        Width="480" Height="560"
+        ResizeMode="NoResize"
+        Style="{StaticResource AppWindow}"
+        WindowStartupLocation="CenterOwner">
+
+    <Window.DataContext>
+        <vm:SettingsViewModel/>
+    </Window.DataContext>
+
+    <Grid Margin="28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="20"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="16"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Settings" Style="{StaticResource TextHeadline}"/>
+
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- Network -->
+                <TextBlock Text="NETWORK" Style="{StaticResource TextCaption}"
+                           Margin="0,0,0,10" LetterSpacing="1.5"/>
+                <Border Style="{StaticResource Card}" Margin="0,0,0,20">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Port" Style="{StaticResource TextBody}" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Style="{StaticResource InputBox}"
+                                     Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="180"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="ADB path" Style="{StaticResource TextBody}" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Style="{StaticResource InputBox}"
+                                     Text="{Binding AdbPath, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Encoding -->
+                <TextBlock Text="ENCODING" Style="{StaticResource TextCaption}"
+                           Margin="0,0,0,10" LetterSpacing="1.5"/>
+                <Border Style="{StaticResource Card}" Margin="0,0,0,20">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="140"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Codec" Style="{StaticResource TextBody}" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding AvailableCodecs}"
+                                      SelectedItem="{Binding Codec}"
+                                      Background="{StaticResource SurfaceRaisedBrush}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      BorderBrush="{StaticResource BorderBrush}"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Bitrate (kbps)" Style="{StaticResource TextBody}" VerticalAlignment="Center"/>
+                            <TextBox Grid.Column="1" Style="{StaticResource InputBox}"
+                                     Text="{Binding BitrateKbps, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="140"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Refresh rate" Style="{StaticResource TextBody}" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding RefreshRateOptions}"
+                                      SelectedItem="{Binding RefreshRateHz}"
+                                      Background="{StaticResource SurfaceRaisedBrush}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      BorderBrush="{StaticResource BorderBrush}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- System -->
+                <TextBlock Text="SYSTEM" Style="{StaticResource TextCaption}"
+                           Margin="0,0,0,10" LetterSpacing="1.5"/>
+                <Border Style="{StaticResource Card}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Start on Windows login" Style="{StaticResource TextBody}" VerticalAlignment="Center"/>
+                        <CheckBox Grid.Column="1" IsChecked="{Binding StartOnBoot}"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                    Margin="0,0,8,0" Click="Cancel_Click"/>
+            <Button Content="Save" Style="{StaticResource PrimaryButton}" Click="Save_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

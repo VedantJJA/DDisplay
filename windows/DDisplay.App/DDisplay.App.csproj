@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>DDisplay.App</RootNamespace>
+    <AssemblyName>DDisplay</AssemblyName>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <LangVersion>latest</LangVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.*" />
+    <PackageReference Include="QRCoder" Version="1.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DDisplay.Core\DDisplay.Core.csproj" />
+    <ProjectReference Include="..\DDisplay.VddControl\DDisplay.VddControl.csproj" />
+  </ItemGroup>
+
+  <!-- Embed ADB platform-tools if present -->
+  <ItemGroup>
+    <Content Include="platform-tools\**" CopyToOutputDirectory="PreserveNewest" Condition="Exists('platform-tools')" />
+  </ItemGroup>
+</Project>

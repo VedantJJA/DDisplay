@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DDisplay.Core</RootNamespace>
+    <AssemblyName>DDisplay.Core</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- WinRT projections for Windows.Graphics.Capture as alternative to DXGI -->
+    <UseWindowsForms>false</UseWindowsForms>
+    <UseWPF>false</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Vortice.Windows" Version="3.*" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.*" />
+    <PackageReference Include="Vortice.DXGI" Version="3.*" />
+    <PackageReference Include="System.Text.Json" Version="8.*" />
+    <PackageReference Include="Makaretu.Dns.Multicast" Version="0.27.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DDisplay.VddControl\DDisplay.VddControl.csproj" />
+  </ItemGroup>
+</Project>
