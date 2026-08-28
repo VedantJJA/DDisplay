@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using DDisplay.App.ViewModels;
 using DDisplay.Core.Transport;
@@ -44,8 +45,28 @@ public partial class MainWindow : Window
 
     private void InstallVdd_Click(object sender, RoutedEventArgs e)
     {
-        // Open the VDC GitHub releases page instructions in the default browser.
-        // TODO: Optionally bundle the VDC installer and invoke it directly.
+        try
+        {
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var batPath = Path.Combine(baseDir, @"..\..\..\..\..\driver\install-vdd.bat");
+            var fullBatPath = Path.GetFullPath(batPath);
+
+            if (File.Exists(fullBatPath))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = fullBatPath,
+                    UseShellExecute = true,
+                    Verb = "runas",
+                });
+                return;
+            }
+        }
+        catch
+        {
+            // Fallback to web release page
+        }
+
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         {
             FileName = "https://github.com/VirtualDrivers/Virtual-Display-Driver/releases",

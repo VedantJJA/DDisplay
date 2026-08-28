@@ -141,7 +141,7 @@
         android:text="@string/action_save"
         android:textColor="@color/color_text_primary"
         android:backgroundTint="@color/color_accent"
-        android:cornerRadius="8dp"
+        app:cornerRadius="8dp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"/>
