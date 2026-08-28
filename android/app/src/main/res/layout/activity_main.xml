@@ -88,10 +88,20 @@
                 android:textColor="@color/color_text_secondary"
                 android:textSize="13sp"/>
 
+            <TextView
+                android:id="@+id/tvPacketLoss"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Packet Loss: 0 (0.0%)"
+                android:textColor="@color/color_text_secondary"
+                android:textSize="12sp"
+                android:visibility="gone"/>
+
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
-    <!-- Connect button -->
+    <!-- Action buttons -->
     <LinearLayout
         android:id="@+id/layoutButtons"
         android:layout_width="0dp"
@@ -112,6 +122,19 @@
             android:textColor="@color/color_text_primary"
             android:backgroundTint="@color/color_accent"
             app:cornerRadius="10dp"/>
+
+        <Button
+            android:id="@+id/btnStartStreaming"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="10dp"
+            android:text="Start Streaming"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/color_text_primary"
+            android:backgroundTint="@color/color_success"
+            app:cornerRadius="10dp"
+            android:visibility="gone"/>
 
     </LinearLayout>
 

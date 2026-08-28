@@ -159,7 +159,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 {
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
                     {
-                        StatusText = $"Connected ({TransportLabel}) | Packets: {stats.Packets} | Data: {stats.Bytes / 1024.0:F1} KB | Latency: {stats.RttMs}ms";
+                        StatusText = $"Connected ({TransportLabel}) | Packets: {stats.Packets} | Loss: {stats.PacketLoss} | Data: {stats.Bytes / 1024.0:F1} KB | Latency: {stats.RttMs}ms";
                     });
                 };
                 _sessionCoordinator.StreamingStateChanged += (_, streaming) =>

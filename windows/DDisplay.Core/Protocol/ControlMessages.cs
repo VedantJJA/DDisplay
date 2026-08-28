@@ -60,9 +60,21 @@ public sealed class HelloMessage : ControlMessage
     public int MaxDecodeHeightPx { get; set; }
 }
 
-// ---------------------------------------------------------------------------
-// Windows -> Android
-// ---------------------------------------------------------------------------
+public sealed class StartStreamMessage : ControlMessage
+{
+    public override string Type => "start-stream";
+
+    [JsonPropertyName("screenWidthPx")]
+    public int ScreenWidthPx { get; set; }
+
+    [JsonPropertyName("screenHeightPx")]
+    public int ScreenHeightPx { get; set; }
+}
+
+public sealed class StopStreamMessage : ControlMessage
+{
+    public override string Type => "stop-stream";
+}
 
 public sealed class HelloAckMessage : ControlMessage
 {

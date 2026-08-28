@@ -5,54 +5,47 @@ using DDisplay.VddControl.Models;
 namespace DDisplay.VddControl;
 
 /// <summary>
-/// Controls the Virtual Display Driver by managing monitor entries in vdd_settings.xml
-/// and dynamically enabling or disabling the virtual display adapter.
+/// Controls the Virtual Display Driver (VDD) by modifying vdd_settings.xml
+/// and dynamically enabling/disabling the display with zero UAC popups when elevated.
 /// </summary>
 public sealed class VddXmlControlService : IVirtualDisplayService
 {
-    private readonly string _settingsFilePath;
-    private const string VddDeviceInstanceId = "ROOT\\DISPLAY\\0000";
+    public const string DefaultSettingsPath = @"C:\VirtualDisplayDriver\vdd_settings.xml";
+    public const string VddDeviceInstanceId = @"ROOT\DISPLAY\0000";
 
-    public VddXmlControlService(string settingsFilePath = VddInstallChecker.SettingsFilePath)
+    private readonly string _settingsFilePath;
+
+    public VddXmlControlService(string settingsFilePath = DefaultSettingsPath)
     {
         _settingsFilePath = settingsFilePath;
     }
 
     public bool IsDriverInstalled => VddInstallChecker.IsFullyInstalled();
 
-    public bool IsDisplayEnabled
-    {
-        get
-        {
-            try
-            {
-                var psi = new ProcessStartInfo("pnputil.exe", $"/enum-devices /instanceid \"{VddDeviceInstanceId}\"")
-                {
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                };
-                using var proc = Process.Start(psi);
-                if (proc is null) return false;
-                var output = proc.StandardOutput.ReadToEnd();
-                proc.WaitForExit();
-                return output.Contains("Status:                     Started", StringComparison.OrdinalIgnoreCase);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-    }
+    public bool IsDisplayEnabled => VddInstallChecker.IsDriverDevicePresent();
 
     public async Task EnableDisplayAsync(CancellationToken cancellationToken = default)
     {
-        await RunDriverScriptAsync("enable-display.bat", cancellationToken);
+        try
+        {
+            await RunPnputilAsync($"/enable-device \"{VddDeviceInstanceId}\"", cancellationToken);
+        }
+        catch
+        {
+            await RunDriverScriptAsync("enable-display.bat", cancellationToken);
+        }
     }
 
     public async Task DisableDisplayAsync(CancellationToken cancellationToken = default)
     {
-        await RunDriverScriptAsync("disable-display.bat", cancellationToken);
+        try
+        {
+            await RunPnputilAsync($"/disable-device \"{VddDeviceInstanceId}\"", cancellationToken);
+        }
+        catch
+        {
+            await RunDriverScriptAsync("disable-display.bat", cancellationToken);
+        }
     }
 
     public IReadOnlyList<MonitorEntry> GetMonitors()
@@ -178,7 +171,7 @@ public sealed class VddXmlControlService : IVirtualDisplayService
         if (monitorsEl is null)
         {
             monitorsEl = new XElement("Monitors");
-            doc.Root!.Add(monitorsEl);
+            doc.Root?.Add(monitorsEl);
         }
 
         monitorsEl.RemoveAll();

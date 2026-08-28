@@ -9,6 +9,8 @@ import org.json.JSONObject
 object MessageType {
     const val HELLO = "hello"
     const val HELLO_ACK = "hello-ack"
+    const val START_STREAM = "start-stream"
+    const val STOP_STREAM = "stop-stream"
     const val PAIR_REQUEST = "pair-request"
     const val PAIR_CONFIRM = "pair-confirm"
     const val TOUCH = "touch"
@@ -44,6 +46,18 @@ object ControlMessages {
         put("supportedCodecs", org.json.JSONArray(supportedCodecs))
         put("maxDecodeWidthPx", maxDecodeWidthPx)
         put("maxDecodeHeightPx", maxDecodeHeightPx)
+    }
+
+    fun startStream(screenWidthPx: Int, screenHeightPx: Int): JSONObject = JSONObject().apply {
+        put("type", MessageType.START_STREAM)
+        put("protocolVersion", 1)
+        put("screenWidthPx", screenWidthPx)
+        put("screenHeightPx", screenHeightPx)
+    }
+
+    fun stopStream(): JSONObject = JSONObject().apply {
+        put("type", MessageType.STOP_STREAM)
+        put("protocolVersion", 1)
     }
 
     fun testData(sequence: Long, payload: String, timestampMs: Long): JSONObject = JSONObject().apply {

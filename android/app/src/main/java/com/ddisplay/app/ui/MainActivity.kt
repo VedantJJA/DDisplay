@@ -14,6 +14,7 @@ import com.ddisplay.app.databinding.ActivityMainBinding
 import com.ddisplay.app.protocol.ControlMessages
 import com.ddisplay.app.protocol.HelloAck
 import com.ddisplay.app.protocol.MessageType
+import com.ddisplay.app.render.RenderActivity
 import com.ddisplay.app.service.StreamingForegroundService
 import com.ddisplay.app.transport.SocketTransport
 import com.ddisplay.app.transport.TransportManager
@@ -39,8 +40,12 @@ class MainActivity : AppCompatActivity() {
     private var activeTransport: SocketTransport? = null
     private var testDataJob: Job? = null
     private var testPacketsSent = 0L
+    private var testPacketsAcked = 0L
     private var testBytesTransferred = 0L
     private var lastRttMs = 0L
+
+    private var serverDisplayWidth = 1920
+    private var serverDisplayHeight = 1080
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,6 +72,10 @@ class MainActivity : AppCompatActivity() {
         binding.btnConnect.setOnClickListener {
             updateStatus("Connecting to PC...", connected = false)
             transportManager.connectUsb()
+        }
+
+        binding.btnStartStreaming.setOnClickListener {
+            startStreamingSession()
         }
 
         binding.btnSettings.setOnClickListener {
@@ -102,12 +111,16 @@ class MainActivity : AppCompatActivity() {
     private fun onTransportConnected(transport: SocketTransport, label: String) {
         activeTransport = transport
         testPacketsSent = 0
+        testPacketsAcked = 0
         testBytesTransferred = 0
         lastRttMs = 0
 
         updateStatus("Connected via $label. Exchanging test data...", connected = true)
         binding.tvTransportBadge.text = label
         binding.tvTransportBadge.visibility = View.VISIBLE
+        binding.tvPacketLoss.visibility = View.VISIBLE
+        binding.btnConnect.visibility = View.GONE
+        binding.btnStartStreaming.visibility = View.VISIBLE
 
         transport.onControlMessageReceived = { json ->
             handleControlMessage(json, transport)
@@ -130,7 +143,7 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        // 2. Start Test Data Ping-Pong Loop for debug verification
+        // 2. Start Test Data Ping-Pong Loop
         startTestDataLoop(transport)
     }
 
@@ -150,7 +163,11 @@ class MainActivity : AppCompatActivity() {
 
                 scope.launch(Dispatchers.Main) {
                     val kb = testBytesTransferred / 1024.0
-                    updateStatus("Connected (Active) - Packets: $testPacketsSent | Data: ${"%.1f".format(kb)} KB | RTT: ${lastRttMs}ms", connected = true)
+                    val lostCount = maxOf(0L, testPacketsSent - testPacketsAcked - 1)
+                    val lossPct = if (testPacketsSent > 0) (lostCount * 100.0) / testPacketsSent else 0.0
+
+                    updateStatus("Connected - Packets: $testPacketsSent | Data: ${"%.1f".format(kb)} KB | RTT: ${lastRttMs}ms", connected = true)
+                    binding.tvPacketLoss.text = "Packet Loss: $lostCount (${"%.1f".format(lossPct)}%)"
                 }
 
                 delay(1000L)
@@ -162,8 +179,11 @@ class MainActivity : AppCompatActivity() {
         when (json.optString("type")) {
             MessageType.HELLO_ACK -> {
                 val ack = HelloAck.fromJson(json)
+                serverDisplayWidth = ack.virtualDisplayWidthPx
+                serverDisplayHeight = ack.virtualDisplayHeightPx
+
                 scope.launch {
-                    updateStatus("Handshake OK (${ack.virtualDisplayWidthPx}x${ack.virtualDisplayHeightPx}) - Running data test...", connected = true)
+                    updateStatus("Handshake OK (${ack.virtualDisplayWidthPx}x${ack.virtualDisplayHeightPx}) - Ready to stream", connected = true)
                 }
             }
             MessageType.TEST_DATA -> {
@@ -178,15 +198,40 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             MessageType.TEST_DATA_ACK -> {
+                testPacketsAcked++
                 val echoTime = json.optLong("echoTimestampMs")
                 if (echoTime > 0) {
                     lastRttMs = System.currentTimeMillis() - echoTime
+                }
+                scope.launch {
+                    val lostCount = maxOf(0L, testPacketsSent - testPacketsAcked)
+                    val lossPct = if (testPacketsSent > 0) (lostCount * 100.0) / testPacketsSent else 0.0
+                    binding.tvPacketLoss.text = "Packet Loss: $lostCount (${"%.1f".format(lossPct)}%)"
                 }
             }
             MessageType.BYE -> {
                 scope.launch { onTransportDisconnected("PC disconnected") }
             }
         }
+    }
+
+    private fun startStreamingSession() {
+        val transport = activeTransport ?: return
+        testDataJob?.cancel()
+
+        val displayMetrics = resources.displayMetrics
+        scope.launch(Dispatchers.IO) {
+            transport.sendControlMessage(
+                ControlMessages.startStream(displayMetrics.widthPixels, displayMetrics.heightPixels)
+            )
+        }
+
+        RenderActivity.activeTransport = transport
+        RenderActivity.displayWidthPx = if (serverDisplayWidth > 0) serverDisplayWidth else displayMetrics.widthPixels
+        RenderActivity.displayHeightPx = if (serverDisplayHeight > 0) serverDisplayHeight else displayMetrics.heightPixels
+        RenderActivity.codecMime = "video/avc"
+
+        startActivity(Intent(this, RenderActivity::class.java))
     }
 
     private fun onTransportDisconnected(reason: String) {
@@ -197,6 +242,9 @@ class MainActivity : AppCompatActivity() {
         scope.launch {
             updateStatus("Disconnected: $reason (Ready to connect)", connected = false)
             binding.tvTransportBadge.visibility = View.GONE
+            binding.tvPacketLoss.visibility = View.GONE
+            binding.btnStartStreaming.visibility = View.GONE
+            binding.btnConnect.visibility = View.VISIBLE
         }
     }
 
