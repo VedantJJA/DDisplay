@@ -1,13 +1,7 @@
 # DDisplay one-click launcher for Android and Windows desktop apps
 $ErrorActionPreference = "Stop"
 
-# Auto-elevate to Administrator to allow direct control of Virtual Display Driver
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) {
-    Write-Host "Requesting Administrator privileges to control Virtual Display Driver..." -ForegroundColor Cyan
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
-    exit
-}
+Set-Location $PSScriptRoot
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "       DDisplay All-in-One Launcher     " -ForegroundColor Cyan
@@ -31,7 +25,7 @@ foreach ($line in ($devicesOutput -split "`r?`n" | Select-Object -Skip 1)) {
     }
 }
 
-if ($devices.Count > 0) {
+if ($devices.Count -gt 0) {
     $serial = $devices[0]
     Write-Host "Found Android device: $serial" -ForegroundColor Green
 
