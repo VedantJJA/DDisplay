@@ -51,8 +51,6 @@ public sealed class VddXmlControlService : IVirtualDisplayService
             {
                 await RunDriverScriptAsync("enable-display.bat", cancellationToken);
             }
-
-            await ReloadDriverInternalAsync(cancellationToken);
         }
         finally
         {
@@ -79,8 +77,6 @@ public sealed class VddXmlControlService : IVirtualDisplayService
             {
                 await RunDriverScriptAsync("disable-display.bat", cancellationToken);
             }
-
-            await ReloadDriverInternalAsync(cancellationToken);
         }
         finally
         {
@@ -149,24 +145,35 @@ public sealed class VddXmlControlService : IVirtualDisplayService
             doc.Root?.Add(resolutionsEl);
         }
 
-        // Check if resolution already exists
-        var existing = resolutionsEl.Elements("resolution").FirstOrDefault(r =>
-            (int?)r.Element("width") == entry.WidthPx &&
-            (int?)r.Element("height") == entry.HeightPx);
+        // Add both landscape and portrait variants so Windows settings can freely switch orientation
+        int w = entry.WidthPx;
+        int h = entry.HeightPx;
+        int maxDim = Math.Max(w, h);
+        int minDim = Math.Min(w, h);
 
-        if (existing is null)
-        {
-            resolutionsEl.AddFirst(new XElement("resolution",
-                new XElement("width", entry.WidthPx),
-                new XElement("height", entry.HeightPx),
-                new XElement("refresh_rate", entry.RefreshRateHz > 0 ? entry.RefreshRateHz : 60)));
-        }
+        AddResolutionIfMissing(resolutionsEl, maxDim, minDim, entry.RefreshRateHz);
+        AddResolutionIfMissing(resolutionsEl, minDim, maxDim, entry.RefreshRateHz);
 
         SetMonitorCount(1);
         doc.Save(_settingsFilePath);
 
         await ReloadDriverAsync(cancellationToken);
         return 0;
+    }
+
+    private static void AddResolutionIfMissing(XElement resolutionsEl, int width, int height, int refreshRate)
+    {
+        var existing = resolutionsEl.Elements("resolution").FirstOrDefault(r =>
+            (int?)r.Element("width") == width &&
+            (int?)r.Element("height") == height);
+
+        if (existing is null)
+        {
+            resolutionsEl.AddFirst(new XElement("resolution",
+                new XElement("width", width),
+                new XElement("height", height),
+                new XElement("refresh_rate", refreshRate > 0 ? refreshRate : 60)));
+        }
     }
 
     public async Task RemoveMonitorAsync(int index, CancellationToken cancellationToken = default)
@@ -180,18 +187,6 @@ public sealed class VddXmlControlService : IVirtualDisplayService
         await _serviceLock.WaitAsync(cancellationToken);
         try
         {
-            await ReloadDriverInternalAsync(cancellationToken);
-        }
-        finally
-        {
-            _serviceLock.Release();
-        }
-    }
-
-    private async Task ReloadDriverInternalAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
             var output = await RunPnputilAsync($"/restart-device \"{VddDeviceInstanceId}\"", cancellationToken);
             if (output.Contains("Failed to restart") || output.Contains("Access is denied"))
             {
@@ -200,7 +195,19 @@ public sealed class VddXmlControlService : IVirtualDisplayService
         }
         catch
         {
-            await RunDriverScriptAsync("enable-display.bat", cancellationToken);
+            // If restart fails and count > 0, run enable script
+            if (GetMonitorCount() > 0)
+            {
+                await RunDriverScriptAsync("enable-display.bat", cancellationToken);
+            }
+            else
+            {
+                await RunDriverScriptAsync("disable-display.bat", cancellationToken);
+            }
+        }
+        finally
+        {
+            _serviceLock.Release();
         }
     }
 
@@ -237,18 +244,15 @@ public sealed class VddXmlControlService : IVirtualDisplayService
                     new XElement("g_refresh_rate", 90),
                     new XElement("g_refresh_rate", 120)),
                 new XElement("resolutions",
-                    new XElement("resolution",
-                        new XElement("width", 1920),
-                        new XElement("height", 1080),
-                        new XElement("refresh_rate", 60)),
-                    new XElement("resolution",
-                        new XElement("width", 2400),
-                        new XElement("height", 1080),
-                        new XElement("refresh_rate", 60)),
-                    new XElement("resolution",
-                        new XElement("width", 2560),
-                        new XElement("height", 1440),
-                        new XElement("refresh_rate", 60))),
+                    // Standard Landscape & Portrait modes for dynamic Windows orientation switching
+                    new XElement("resolution", new XElement("width", 1920), new XElement("height", 1080), new XElement("refresh_rate", 60)),
+                    new XElement("resolution", new XElement("width", 1080), new XElement("height", 1920), new XElement("refresh_rate", 60)),
+                    new XElement("resolution", new XElement("width", 2400), new XElement("height", 1080), new XElement("refresh_rate", 60)),
+                    new XElement("resolution", new XElement("width", 1080), new XElement("height", 2400), new XElement("refresh_rate", 60)),
+                    new XElement("resolution", new XElement("width", 2560), new XElement("height", 1440), new XElement("refresh_rate", 60)),
+                    new XElement("resolution", new XElement("width", 1440), new XElement("height", 2560), new XElement("refresh_rate", 60)),
+                    new XElement("resolution", new XElement("width", 1280), new XElement("height", 720), new XElement("refresh_rate", 60)),
+                    new XElement("resolution", new XElement("width", 720), new XElement("height", 1280), new XElement("refresh_rate", 60))),
                 new XElement("logging",
                     new XElement("SendLogsThroughPipe", false),
                     new XElement("logging", false),
