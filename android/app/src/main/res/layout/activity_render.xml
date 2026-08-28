@@ -12,7 +12,7 @@
         android:layout_height="match_parent"
         android:layout_gravity="center"/>
 
-    <!-- Overlay HUD -- tap to toggle visibility -->
+    <!-- Overlay HUD: tap to toggle visibility -->
     <LinearLayout
         android:id="@+id/hudOverlay"
         android:layout_width="wrap_content"
