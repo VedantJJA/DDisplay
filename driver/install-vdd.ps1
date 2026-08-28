@@ -46,7 +46,8 @@ try {
 
         foreach ($cert in $certs) {
             $certPath = Join-Path $certsDir "$($cert.Thumbprint).cer"
-            $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert) | Set-Content -Path $certPath -Encoding Byte
+            $bytes = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+            [System.IO.File]::WriteAllBytes($certPath, $bytes)
             Import-Certificate -FilePath $certPath -CertStoreLocation "Cert:\LocalMachine\TrustedPublisher" | Out-Null
         }
     }
