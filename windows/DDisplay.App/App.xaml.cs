@@ -88,6 +88,37 @@ public partial class App : System.Windows.Application
     {
         try
         {
+            // 1. Direct XML zeroing (fastest & most reliable)
+            const string settingsPath = @"C:\VirtualDisplayDriver\vdd_settings.xml";
+            if (File.Exists(settingsPath))
+            {
+                try
+                {
+                    var doc = System.Xml.Linq.XDocument.Load(settingsPath);
+                    var countEl = doc.Root?.Element("monitors")?.Element("count");
+                    if (countEl != null)
+                    {
+                        countEl.Value = "0";
+                        doc.Save(settingsPath);
+                    }
+                }
+                catch { }
+            }
+
+            // 2. Direct pnputil disable
+            try
+            {
+                var psi = new ProcessStartInfo("pnputil.exe", "/disable-device \"ROOT\\DISPLAY\\0000\"")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                using var proc = Process.Start(psi);
+                proc?.WaitForExit(2000);
+            }
+            catch { }
+
+            // 3. Fallback to disable script
             var baseDir = AppDomain.CurrentDomain.BaseDirectory;
             var batPath = Path.Combine(baseDir, @"..\..\..\..\..\driver\disable-display.bat");
             var fullPath = Path.GetFullPath(batPath);
@@ -95,7 +126,8 @@ public partial class App : System.Windows.Application
             {
                 var psi = new ProcessStartInfo
                 {
-                    FileName = fullPath,
+                    FileName = "cmd.exe",
+                    Arguments = $"/c \"{fullPath}\"",
                     UseShellExecute = true,
                     Verb = "runas",
                     WindowStyle = ProcessWindowStyle.Hidden,

@@ -22,8 +22,8 @@
     <ProjectReference Include="..\DDisplay.VddControl\DDisplay.VddControl.csproj" />
   </ItemGroup>
 
-  <!-- Embed ADB platform-tools if present -->
+  <!-- Embed ADB tools -->
   <ItemGroup>
-    <Content Include="platform-tools\**" CopyToOutputDirectory="PreserveNewest" Condition="Exists('platform-tools')" />
+    <Content Include="tools\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

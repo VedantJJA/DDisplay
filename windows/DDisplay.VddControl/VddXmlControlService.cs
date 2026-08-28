@@ -7,6 +7,7 @@ namespace DDisplay.VddControl;
 /// <summary>
 /// Controls the Virtual Display Driver (VDD) by modifying vdd_settings.xml
 /// using MikeTheTech's schema (<vdd_settings><monitors><count>1</count></monitors>...).
+/// Includes debounce and state verification to avoid redundant driver initialization prompts.
 /// </summary>
 public sealed class VddXmlControlService : IVirtualDisplayService
 {
@@ -14,6 +15,7 @@ public sealed class VddXmlControlService : IVirtualDisplayService
     public const string VddDeviceInstanceId = @"ROOT\DISPLAY\0000";
 
     private readonly string _settingsFilePath;
+    private readonly SemaphoreSlim _serviceLock = new(1, 1);
 
     public VddXmlControlService(string settingsFilePath = DefaultSettingsPath)
     {
@@ -22,46 +24,68 @@ public sealed class VddXmlControlService : IVirtualDisplayService
 
     public bool IsDriverInstalled => VddInstallChecker.IsFullyInstalled();
 
-    public bool IsDisplayEnabled => VddInstallChecker.IsDriverDevicePresent() && GetMonitorCount() > 0;
+    public bool IsDisplayEnabled => VddInstallChecker.IsVirtualDisplayActive();
 
     public async Task EnableDisplayAsync(CancellationToken cancellationToken = default)
     {
-        SetMonitorCount(1);
-
+        await _serviceLock.WaitAsync(cancellationToken);
         try
         {
-            var output = await RunPnputilAsync($"/enable-device \"{VddDeviceInstanceId}\"", cancellationToken);
-            if (output.Contains("Failed to enable") || output.Contains("Access is denied"))
-            {
-                throw new InvalidOperationException($"pnputil failed: {output}");
-            }
-        }
-        catch
-        {
-            await RunDriverScriptAsync("enable-display.bat", cancellationToken);
-        }
+            SetMonitorCount(1);
 
-        await ReloadDriverAsync(cancellationToken);
+            // If virtual display is already active in Windows display manager, no driver reload needed
+            if (VddInstallChecker.IsVirtualDisplayActive())
+            {
+                return;
+            }
+
+            try
+            {
+                var output = await RunPnputilAsync($"/enable-device \"{VddDeviceInstanceId}\"", cancellationToken);
+                if (output.Contains("Failed to enable") || output.Contains("Access is denied"))
+                {
+                    throw new InvalidOperationException($"pnputil failed: {output}");
+                }
+            }
+            catch
+            {
+                await RunDriverScriptAsync("enable-display.bat", cancellationToken);
+            }
+
+            await ReloadDriverInternalAsync(cancellationToken);
+        }
+        finally
+        {
+            _serviceLock.Release();
+        }
     }
 
     public async Task DisableDisplayAsync(CancellationToken cancellationToken = default)
     {
-        SetMonitorCount(0);
-
+        await _serviceLock.WaitAsync(cancellationToken);
         try
         {
-            var output = await RunPnputilAsync($"/disable-device \"{VddDeviceInstanceId}\"", cancellationToken);
-            if (output.Contains("Failed to disable") || output.Contains("Access is denied"))
-            {
-                throw new InvalidOperationException($"pnputil failed: {output}");
-            }
-        }
-        catch
-        {
-            await RunDriverScriptAsync("disable-display.bat", cancellationToken);
-        }
+            SetMonitorCount(0);
 
-        await ReloadDriverAsync(cancellationToken);
+            try
+            {
+                var output = await RunPnputilAsync($"/disable-device \"{VddDeviceInstanceId}\"", cancellationToken);
+                if (output.Contains("Failed to disable") || output.Contains("Access is denied"))
+                {
+                    throw new InvalidOperationException($"pnputil failed: {output}");
+                }
+            }
+            catch
+            {
+                await RunDriverScriptAsync("disable-display.bat", cancellationToken);
+            }
+
+            await ReloadDriverInternalAsync(cancellationToken);
+        }
+        finally
+        {
+            _serviceLock.Release();
+        }
     }
 
     public int GetMonitorCount()
@@ -152,6 +176,19 @@ public sealed class VddXmlControlService : IVirtualDisplayService
     }
 
     public async Task ReloadDriverAsync(CancellationToken cancellationToken = default)
+    {
+        await _serviceLock.WaitAsync(cancellationToken);
+        try
+        {
+            await ReloadDriverInternalAsync(cancellationToken);
+        }
+        finally
+        {
+            _serviceLock.Release();
+        }
+    }
+
+    private async Task ReloadDriverInternalAsync(CancellationToken cancellationToken)
     {
         try
         {

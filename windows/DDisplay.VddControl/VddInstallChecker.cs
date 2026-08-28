@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
 namespace DDisplay.VddControl;
@@ -10,8 +11,29 @@ public static class VddInstallChecker
     public const string SettingsFilePath = @"C:\VirtualDisplayDriver\vdd_settings.xml";
     public const string DriverDirectory = @"C:\VirtualDisplayDriver";
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct DISPLAY_DEVICE
+    {
+        public int cb;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string DeviceName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+        public string DeviceString;
+        public int StateFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+        public string DeviceID;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+        public string DeviceKey;
+    }
+
+    [DllImport("user32.dll")]
+    public static extern bool EnumDisplayDevices(string? lpDevice, uint iDevNum, ref DISPLAY_DEVICE lpDisplayDevice, uint dwFlags);
+
+    public const int DISPLAY_DEVICE_ATTACHED_TO_DESKTOP = 0x00000001;
+    public const int DISPLAY_DEVICE_PRIMARY_DEVICE = 0x00000004;
+
     /// <summary>
-    /// Checks if the VDD device is present in the system device tree via the registry.
+    /// Checks if the VDD device is registered in the system device tree via the registry.
     /// </summary>
     public static bool IsDriverDevicePresent()
     {
@@ -46,6 +68,42 @@ public static class VddInstallChecker
                 }
             }
 
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if a secondary / virtual display is actively attached to the Windows desktop.
+    /// </summary>
+    public static bool IsVirtualDisplayActive()
+    {
+        try
+        {
+            var d = new DISPLAY_DEVICE { cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE)) };
+            uint i = 0;
+            while (EnumDisplayDevices(null, i, ref d, 0))
+            {
+                bool attached = (d.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0;
+                bool primary = (d.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
+
+                if (attached && !primary)
+                {
+                    return true;
+                }
+
+                if (attached && (d.DeviceString.Contains("Virtual Display", StringComparison.OrdinalIgnoreCase) ||
+                                 d.DeviceString.Contains("IddSample", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+
+                d.cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE));
+                i++;
+            }
             return false;
         }
         catch

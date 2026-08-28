@@ -25,12 +25,20 @@ public sealed class AdbUsbTransport : TcpLanTransport
     {
         if (!string.IsNullOrEmpty(customPath) && File.Exists(customPath)) return customPath;
 
-        // Check LocalAppData Android SDK
+        // 1. Check local application tools/adb.exe
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        var bundledAdb = Path.Combine(baseDir, @"tools\adb.exe");
+        if (File.Exists(bundledAdb)) return bundledAdb;
+
+        var localToolsAdb = Path.Combine(baseDir, @"..\..\..\..\..\windows\DDisplay.App\tools\adb.exe");
+        if (File.Exists(localToolsAdb)) return Path.GetFullPath(localToolsAdb);
+
+        // 2. Check LocalAppData Android SDK
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var sdkAdb = Path.Combine(localAppData, @"Android\Sdk\platform-tools\adb.exe");
         if (File.Exists(sdkAdb)) return sdkAdb;
 
-        // Check ANDROID_HOME / ANDROID_SDK_ROOT
+        // 3. Check ANDROID_HOME / ANDROID_SDK_ROOT
         var androidHome = Environment.GetEnvironmentVariable("ANDROID_HOME") ?? Environment.GetEnvironmentVariable("ANDROID_SDK_ROOT");
         if (!string.IsNullOrEmpty(androidHome))
         {
