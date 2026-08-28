@@ -20,6 +20,14 @@
         android:scaleType="fitCenter"
         android:visibility="visible"/>
 
+    <ImageView
+        android:id="@+id/ivCursor"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:src="@drawable/ic_cursor"
+        android:visibility="gone"
+        android:elevation="10dp"/>
+
     <!-- Overlay HUD: tap to toggle visibility -->
     <LinearLayout
         android:id="@+id/hudOverlay"

@@ -254,3 +254,59 @@ public sealed class ErrorMessage : ControlMessage
     [JsonPropertyName("message")]
     public string Message { get; set; } = string.Empty;
 }
+
+// ---------------------------------------------------------------------------
+// Real-Time Change-Detection & Cursor Messages
+// ---------------------------------------------------------------------------
+
+public sealed class CursorUpdateMessage : ControlMessage
+{
+    public override string Type => "cursor";
+
+    [JsonPropertyName("x")]
+    public int X { get; set; }
+
+    [JsonPropertyName("y")]
+    public int Y { get; set; }
+
+    [JsonPropertyName("visible")]
+    public bool Visible { get; set; } = true;
+
+    [JsonPropertyName("shapeBase64")]
+    public string? ShapeBase64 { get; set; }
+
+    [JsonPropertyName("shapeWidth")]
+    public int ShapeWidth { get; set; }
+
+    [JsonPropertyName("shapeHeight")]
+    public int ShapeHeight { get; set; }
+
+    [JsonPropertyName("hotspotX")]
+    public int HotspotX { get; set; }
+
+    [JsonPropertyName("hotspotY")]
+    public int HotspotY { get; set; }
+}
+
+public sealed class TilePatchMessage : ControlMessage
+{
+    public override string Type => "tile-patch";
+
+    [JsonPropertyName("tileX")]
+    public int TileX { get; set; }
+
+    [JsonPropertyName("tileY")]
+    public int TileY { get; set; }
+
+    [JsonPropertyName("tileWidth")]
+    public int TileWidth { get; set; }
+
+    [JsonPropertyName("tileHeight")]
+    public int TileHeight { get; set; }
+
+    [JsonPropertyName("imageBase64")]
+    public string ImageBase64 { get; set; } = string.Empty;
+
+    [JsonPropertyName("timestampMs")]
+    public long TimestampMs { get; set; }
+}

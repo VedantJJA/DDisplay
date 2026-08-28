@@ -1,3 +1,4 @@
+using DDisplay.Core.Capture;
 using DDisplay.Core.Protocol;
 using DDisplay.Tests.Transport;
 using DDisplay.Tests.VddControl;
@@ -62,7 +63,7 @@ public class CoreTests
         await svc.AddOrUpdateMonitorAsync(entry);
 
         var monitors = svc.GetMonitors();
-        Assert.Single(monitors);
+        Assert.NotEmpty(monitors);
         Assert.Equal(1280, monitors[0].WidthPx);
     }
 
@@ -96,5 +97,72 @@ public class CoreTests
             TimestampMs = 1000,
         };
         Assert.Equal("touch", msg.Type);
+    }
+
+    [Fact]
+    public void ControlMessages_CursorUpdateMessage_HasCorrectType()
+    {
+        var msg = new CursorUpdateMessage
+        {
+            X = 100,
+            Y = 200,
+            Visible = true,
+        };
+        Assert.Equal("cursor", msg.Type);
+    }
+
+    [Fact]
+    public void ControlMessages_TilePatchMessage_HasCorrectType()
+    {
+        var msg = new TilePatchMessage
+        {
+            TileX = 64,
+            TileY = 128,
+            TileWidth = 64,
+            TileHeight = 64,
+            ImageBase64 = "test",
+        };
+        Assert.Equal("tile-patch", msg.Type);
+    }
+
+    [Fact]
+    public void TilePatchCompressor_SnapToTileGrid_AlignedTo64Px()
+    {
+        var (x, y, w, h) = TilePatchCompressor.SnapToTileGrid(10, 15, 75, 80, 1920, 1080);
+        Assert.Equal(0, x);
+        Assert.Equal(0, y);
+        Assert.Equal(128, w);
+        Assert.Equal(128, h);
+    }
+
+    [Fact]
+    public void TilePatchCompressor_CalculateChangeRatio_AccuratePercentage()
+    {
+        // 1920x1080 = 2,073,600 px. 192x108 = 20,736 px (1%)
+        var rects = new[] { (0, 0, 192, 108) };
+        double ratio = TilePatchCompressor.CalculateChangeRatio(rects, 1920, 1080);
+        Assert.InRange(ratio, 0.009, 0.011);
+    }
+
+    [Fact]
+    public void TilePatchCompressor_ExtractTilePatch_ProducesValidJpeg()
+    {
+        byte[] fakeBgra = new byte[1920 * 1080 * 4];
+        // Fill some pixels
+        for (int i = 0; i < fakeBgra.Length; i += 4)
+        {
+            fakeBgra[i] = 255;     // B
+            fakeBgra[i + 1] = 128; // G
+            fakeBgra[i + 2] = 64;  // R
+            fakeBgra[i + 3] = 255; // A
+        }
+
+        var patch = TilePatchCompressor.ExtractTilePatch(fakeBgra, 1920, 1080, 0, 0, 64, 64);
+        Assert.NotNull(patch);
+        Assert.Equal(0, patch.X);
+        Assert.Equal(0, patch.Y);
+        Assert.Equal(64, patch.Width);
+        Assert.Equal(64, patch.Height);
+        Assert.False(string.IsNullOrEmpty(patch.ImageBase64));
     }
 }

@@ -28,11 +28,21 @@ public interface ICaptureEngine : IAsyncDisposable
     Task StopCaptureAsync();
 
     /// <summary>
-    /// Raised for each captured frame. The frame data is a CPU-side BGRA byte array.
-    /// For GPU-to-encoder pipelines this will be replaced with a GPU texture handle
-    /// to avoid a CPU round-trip, but the interface keeps it simple for Phase 2.
+    /// Raised for each captured frame or update (Full, Patch, or CursorOnly).
     /// </summary>
     event EventHandler<CaptureFrameEventArgs>? FrameAvailable;
+}
+
+public sealed class CursorInfo
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+    public bool Visible { get; set; } = true;
+    public string? ShapeBase64 { get; set; }
+    public int ShapeWidth { get; set; }
+    public int ShapeHeight { get; set; }
+    public int HotspotX { get; set; }
+    public int HotspotY { get; set; }
 }
 
 public sealed class CaptureFrameEventArgs : EventArgs
@@ -43,4 +53,7 @@ public sealed class CaptureFrameEventArgs : EventArgs
     public required int WidthPx { get; init; }
     public required int HeightPx { get; init; }
     public required long TimestampMs { get; init; }
+    public FrameClassification Classification { get; init; } = FrameClassification.Full;
+    public List<TilePatch>? Patches { get; init; }
+    public CursorInfo? Cursor { get; init; }
 }

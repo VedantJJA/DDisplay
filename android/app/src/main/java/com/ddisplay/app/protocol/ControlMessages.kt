@@ -20,6 +20,8 @@ object MessageType {
     const val HEARTBEAT_ACK = "heartbeat-ack"
     const val TEST_DATA = "test-data"
     const val TEST_DATA_ACK = "test-data-ack"
+    const val CURSOR = "cursor"
+    const val TILE_PATCH = "tile-patch"
     const val BYE = "bye"
     const val ERROR = "error"
 }

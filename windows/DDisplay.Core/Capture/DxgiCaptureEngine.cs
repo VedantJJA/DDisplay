@@ -1,13 +1,17 @@
+using System.Drawing;
 using System.Runtime.InteropServices;
+using Vortice;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
+using Vortice.Mathematics;
 
 namespace DDisplay.Core.Capture;
 
 /// <summary>
 /// Captures the virtual/secondary monitor's framebuffer using DXGI Desktop Duplication API.
-/// Enumerates all adapters to find the extended virtual monitor, and keeps the stream active.
+/// Employs change-detection (GetFrameDirtyRects and cursor tracking) to classify updates
+/// into CursorOnly, Dirty Tile Patches, or Full-Frame Video.
 /// </summary>
 public sealed class DxgiCaptureEngine : ICaptureEngine
 {
@@ -62,7 +66,6 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
         {
             if (allOutputs.Count > 1)
             {
-                // Choose the second output
                 selectedAdapter = allOutputs[1].Adapter;
                 targetOutput = allOutputs[1].Output;
             }
@@ -74,8 +77,8 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
         }
 
         var desc = targetOutput.Description;
-        WidthPx = desc.DesktopCoordinates.Right - desc.DesktopCoordinates.Left;
-        HeightPx = desc.DesktopCoordinates.Bottom - desc.DesktopCoordinates.Top;
+        WidthPx = Math.Abs(desc.DesktopCoordinates.Right - desc.DesktopCoordinates.Left);
+        HeightPx = Math.Abs(desc.DesktopCoordinates.Bottom - desc.DesktopCoordinates.Top);
 
         // Clean up unused outputs
         foreach (var item in allOutputs)
@@ -127,80 +130,157 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
 
         await Task.Run(() =>
         {
-            long lastSentTimestamp = 0;
+            var dirtyRectsBuffer = new Vortice.RawRect[1024];
 
             while (!cancellationToken.IsCancellationRequested && _capturing)
             {
                 try
                 {
+                    // Block up to 100ms when screen is static (OS sleeps capture thread for free)
                     var result = _duplication!.AcquireNextFrame(
-                        50, // 50ms timeout
+                        100,
                         out var frameInfo,
                         out var desktopResource);
 
                     long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-                    if (result.Success && desktopResource != null)
+                    if (!result.Success || desktopResource == null)
                     {
-                        using var texture = desktopResource.QueryInterface<ID3D11Texture2D>();
-                        _d3dContext!.CopyResource(_stagingTexture!, texture);
+                        // Screen genuinely static; zero encode or network overhead
+                        continue;
+                    }
 
-                        var mapped = _d3dContext.Map(_stagingTexture!, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+                    // 1. Process pointer / cursor info
+                    CursorInfo? cursorInfo = null;
+                    if (frameInfo.LastMouseUpdateTime > 0 && frameInfo.PointerPosition.Visible)
+                    {
+                        cursorInfo = new CursorInfo
+                        {
+                            X = frameInfo.PointerPosition.Position.X,
+                            Y = frameInfo.PointerPosition.Position.Y,
+                            Visible = frameInfo.PointerPosition.Visible,
+                        };
+                    }
+
+                    // 2. Query Dirty Rectangles
+                    var dirtyRectList = new List<(int Left, int Top, int Right, int Bottom)>();
+                    int dirtyRectsCount = 0;
+
+                    if (frameInfo.TotalMetadataBufferSize > 0)
+                    {
                         try
                         {
-                            var bgraData = new byte[WidthPx * HeightPx * 4];
-                            for (int row = 0; row < HeightPx; row++)
+                            _duplication.GetFrameDirtyRects((uint)(dirtyRectsBuffer.Length * Marshal.SizeOf<Vortice.RawRect>()), dirtyRectsBuffer, out uint dirtyBytesWritten);
+                            dirtyRectsCount = (int)dirtyBytesWritten / Marshal.SizeOf<Vortice.RawRect>();
+
+                            for (int i = 0; i < dirtyRectsCount; i++)
                             {
-                                var srcOffset = (int)mapped.RowPitch * row;
-                                Marshal.Copy(
-                                    IntPtr.Add(mapped.DataPointer, srcOffset),
-                                    bgraData,
-                                    row * WidthPx * 4,
-                                    WidthPx * 4);
+                                var r = dirtyRectsBuffer[i];
+                                dirtyRectList.Add((r.Left, r.Top, r.Right, r.Bottom));
                             }
-
-                            _lastFrameBgra = bgraData;
-                            lastSentTimestamp = now;
-
-                            FrameAvailable?.Invoke(this, new CaptureFrameEventArgs
-                            {
-                                BgraData = bgraData,
-                                WidthPx = WidthPx,
-                                HeightPx = HeightPx,
-                                TimestampMs = now,
-                            });
                         }
-                        finally
+                        catch { }
+                    }
+
+                    // 3. Copy resource to staging texture
+                    using var texture = desktopResource.QueryInterface<ID3D11Texture2D>();
+                    _d3dContext!.CopyResource(_stagingTexture!, texture);
+
+                    var mapped = _d3dContext.Map(_stagingTexture!, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+                    byte[] currentBgra;
+                    try
+                    {
+                        currentBgra = new byte[WidthPx * HeightPx * 4];
+                        for (int row = 0; row < HeightPx; row++)
                         {
-                            _d3dContext.Unmap(_stagingTexture!, 0);
+                            var srcOffset = (int)mapped.RowPitch * row;
+                            Marshal.Copy(
+                                IntPtr.Add(mapped.DataPointer, srcOffset),
+                                currentBgra,
+                                row * WidthPx * 4,
+                                WidthPx * 4);
                         }
-
+                    }
+                    finally
+                    {
+                        _d3dContext.Unmap(_stagingTexture!, 0);
                         desktopResource.Dispose();
                         _duplication.ReleaseFrame();
                     }
+
+                    _lastFrameBgra = currentBgra;
+
+                    // 4. Classify frame
+                    double changeRatio = TilePatchCompressor.CalculateChangeRatio(dirtyRectList, WidthPx, HeightPx);
+
+                    if (changeRatio == 0 && cursorInfo != null)
+                    {
+                        // Path A: CURSOR_ONLY update
+                        FrameAvailable?.Invoke(this, new CaptureFrameEventArgs
+                        {
+                            BgraData = Array.Empty<byte>(),
+                            WidthPx = WidthPx,
+                            HeightPx = HeightPx,
+                            TimestampMs = now,
+                            Classification = FrameClassification.CursorOnly,
+                            Cursor = cursorInfo,
+                        });
+                    }
+                    else if (changeRatio > 0 && changeRatio < TilePatchCompressor.SmallChangeThreshold && dirtyRectList.Count > 0)
+                    {
+                        // Path B: PATCH update (small dirty tiles)
+                        var snappedTiles = TilePatchCompressor.MergeAndSnapRectangles(dirtyRectList, WidthPx, HeightPx);
+                        var patches = new List<TilePatch>();
+
+                        foreach (var (tx, ty, tw, th) in snappedTiles)
+                        {
+                            var patch = TilePatchCompressor.ExtractTilePatch(currentBgra, WidthPx, HeightPx, tx, ty, tw, th);
+                            if (patch != null)
+                            {
+                                patches.Add(patch);
+                            }
+                        }
+
+                        FrameAvailable?.Invoke(this, new CaptureFrameEventArgs
+                        {
+                            BgraData = Array.Empty<byte>(),
+                            WidthPx = WidthPx,
+                            HeightPx = HeightPx,
+                            TimestampMs = now,
+                            Classification = FrameClassification.Patch,
+                            Patches = patches,
+                            Cursor = cursorInfo,
+                        });
+                    }
                     else
                     {
-                        // On timeout / idle desktop: keep pushing frames at ~10 FPS heartbeat so client decoder stays active
-                        if (_lastFrameBgra != null && (now - lastSentTimestamp > 100))
+                        // Path C: FULL frame video update
+                        FrameAvailable?.Invoke(this, new CaptureFrameEventArgs
                         {
-                            lastSentTimestamp = now;
-                            FrameAvailable?.Invoke(this, new CaptureFrameEventArgs
-                            {
-                                BgraData = _lastFrameBgra,
-                                WidthPx = WidthPx,
-                                HeightPx = HeightPx,
-                                TimestampMs = now,
-                            });
-                        }
+                            BgraData = currentBgra,
+                            WidthPx = WidthPx,
+                            HeightPx = HeightPx,
+                            TimestampMs = now,
+                            Classification = FrameClassification.Full,
+                            Cursor = cursorInfo,
+                        });
                     }
                 }
-                catch (OperationCanceledException)
+                catch (SharpGen.Runtime.SharpGenException ex) when (ex.ResultCode == Vortice.DXGI.ResultCode.AccessLost || ex.ResultCode == Vortice.DXGI.ResultCode.InvalidCall)
                 {
-                    break;
+                    // Display mode or orientation changed; recreate duplication
+                    try
+                    {
+                        _duplication?.Dispose();
+                        _duplication = null;
+                        Thread.Sleep(500);
+                        InitializeAsync(string.Empty, cancellationToken).Wait(cancellationToken);
+                    }
+                    catch { }
                 }
-                catch (Exception)
+                catch
                 {
-                    // Ignore transient capture anomalies
+                    // Ignore single transient capture errors
                 }
             }
         }, cancellationToken);
@@ -216,9 +296,13 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
     {
         _capturing = false;
         _duplication?.Dispose();
+        _duplication = null;
         _stagingTexture?.Dispose();
+        _stagingTexture = null;
         _d3dContext?.Dispose();
+        _d3dContext = null;
         _d3dDevice?.Dispose();
+        _d3dDevice = null;
         return ValueTask.CompletedTask;
     }
 }
