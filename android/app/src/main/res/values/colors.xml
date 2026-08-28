@@ -1,0 +1,21 @@
+<resources>
+    <!-- Background / surface -->
+    <color name="color_background">#0F1117</color>
+    <color name="color_surface">#1A1D27</color>
+    <color name="color_surface_raised">#22263A</color>
+    <color name="color_border">#2E3347</color>
+
+    <!-- Accent -->
+    <color name="color_accent">#4F8EF7</color>
+    <color name="color_accent_dark">#3A72D8</color>
+
+    <!-- Semantic -->
+    <color name="color_success">#3DD68C</color>
+    <color name="color_warning">#F5A623</color>
+    <color name="color_error">#F25C5C</color>
+
+    <!-- Text -->
+    <color name="color_text_primary">#EDF0F7</color>
+    <color name="color_text_secondary">#8A90A8</color>
+    <color name="color_text_disabled">#4B5066</color>
+</resources>

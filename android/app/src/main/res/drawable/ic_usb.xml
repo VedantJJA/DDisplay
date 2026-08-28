@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- USB plug body -->
+    <path
+        android:pathData="M9,6 L15,6 L15,13 L12.5,13 L12.5,16 Q12.5,17.5 11,17.5 Q9.5,17.5 9.5,16 L9.5,13 L9,13 Z"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/color_text_secondary"
+        android:strokeWidth="1.5"/>
+    <!-- Left pin -->
+    <rect android:x="10" android:y="6" android:width="1" android:height="3"
+        android:fillColor="@color/color_text_secondary"/>
+    <!-- Right pin -->
+    <rect android:x="13" android:y="6" android:width="1" android:height="3"
+        android:fillColor="@color/color_text_secondary"/>
+</vector>

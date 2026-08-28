@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full-screen layout for streaming. SurfaceView fills the entire screen. -->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black">
+
+    <SurfaceView
+        android:id="@+id/surfaceView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center"/>
+
+    <!-- Overlay HUD -- tap to toggle visibility -->
+    <LinearLayout
+        android:id="@+id/hudOverlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:background="#80000000"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvHudTransport"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFFFF"
+            android:textSize="11sp"/>
+
+        <TextView
+            android:id="@+id/tvHudResolution"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFFFF"
+            android:textSize="11sp"/>
+
+        <Button
+            android:id="@+id/btnStopStreaming"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Stop"
+            android:textSize="11sp"
+            android:backgroundTint="@color/color_error"
+            android:layout_marginTop="8dp"/>
+
+    </LinearLayout>
+
+</FrameLayout>

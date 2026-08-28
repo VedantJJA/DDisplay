@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M12,15.5 A0.5,0.5 0 1,1 12.01,15.5"
+        android:strokeColor="@color/color_text_secondary"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"/>
+    <!-- Arcs for Wi-Fi signal -->
+    <path
+        android:pathData="M9.17,12.17 A4,4 0 0,1 14.83,12.17"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/color_text_secondary"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M6.34,9.34 A8,8 0 0,1 17.66,9.34"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/color_text_secondary"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"/>
+</vector>

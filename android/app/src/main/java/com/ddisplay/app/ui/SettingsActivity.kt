@@ -1,0 +1,13 @@
+package com.ddisplay.app.ui
+
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+
+class SettingsActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // TODO: inflate a settings layout with port, codec, bitrate preferences.
+        // Using PreferenceFragmentCompat in Phase 9 polish.
+        finish()
+    }
+}
