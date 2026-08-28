@@ -1,0 +1,27 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#1A1D27"
+        android:pathData="M54,0 A54,54 0 1,1 53.99,0 Z"/>
+    <!-- Monitor icon in center -->
+    <path
+        android:pathData="M26,30 L62,30 A4,4 0 0,1 66,34 L66,58 A4,4 0 0,1 62,62 L26,62 A4,4 0 0,1 22,58 L22,34 A4,4 0 0,1 26,30 Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#4F8EF7"
+        android:strokeWidth="4"/>
+    <!-- Tablet / phone on side -->
+    <path
+        android:pathData="M70,36 L82,36 A3,3 0 0,1 85,39 L85,59 A3,3 0 0,1 82,62 L70,62 A3,3 0 0,1 67,59 L67,39 A3,3 0 0,1 70,36 Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#4F8EF7"
+        android:strokeWidth="3"/>
+    <path
+        android:pathData="M44,62 L44,74 M34,74 L54,74"
+        android:fillColor="#00000000"
+        android:strokeColor="#4F8EF7"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"/>
+</vector>

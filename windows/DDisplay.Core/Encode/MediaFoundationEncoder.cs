@@ -1,6 +1,4 @@
 using System.Runtime.InteropServices;
-using Windows.Media.MediaProperties;
-using Windows.Media.Transcoding;
 
 namespace DDisplay.Core.Encode;
 

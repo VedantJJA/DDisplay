@@ -25,7 +25,7 @@
             <StackPanel HorizontalAlignment="Center">
                 <Image x:Name="QrImage" Width="200" Height="200" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                 <TextBlock x:Name="PairingCodeText"
-                           Text="------" FontSize="32" FontWeight="Bold" LetterSpacing="6"
+                           Text="------" FontSize="32" FontWeight="Bold"
                            Foreground="{StaticResource AccentBrush}"
                            HorizontalAlignment="Center" Margin="0,12,0,0"
                            FontFamily="{StaticResource FontMain}"/>

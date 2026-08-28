@@ -28,4 +28,7 @@
     <string name="error_connection_failed">Connection failed. Check USB debugging or Wi-Fi.</string>
     <string name="label_usb_hint">Connect a USB cable and enable USB debugging on this device, then tap Connect via USB.</string>
     <string name="label_wifi_hint">Make sure this device and the Windows PC are on the same Wi-Fi network.</string>
+    <string name="action_save">Save</string>
+    <string name="label_keep_screen_on">Keep screen awake while streaming</string>
+    <string name="label_low_latency">Enable low-latency mode</string>
 </resources>

@@ -22,7 +22,6 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
     private ID3D11DeviceContext? _d3dContext;
     private ID3D11Texture2D? _stagingTexture;
     private bool _capturing;
-    private string? _monitorDeviceName;
 
     public int WidthPx { get; private set; }
     public int HeightPx { get; private set; }
@@ -32,8 +31,6 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
 
     public Task InitializeAsync(string monitorDeviceName, CancellationToken cancellationToken = default)
     {
-        _monitorDeviceName = monitorDeviceName;
-
         // Create D3D11 device.
         var featureLevels = new[] { FeatureLevel.Level_11_0, FeatureLevel.Level_10_1 };
         D3D11.D3D11CreateDevice(
@@ -49,12 +46,12 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
         using var adapter = dxgiDevice.GetAdapter();
 
         IDXGIOutput? targetOutput = null;
-        for (int i = 0; ; i++)
+        for (uint i = 0; ; i++)
         {
             if (adapter.EnumOutputs(i, out var output).Failure)
                 break;
 
-            var desc = output.Description;
+            var desc = output!.Description;
             if (string.IsNullOrEmpty(monitorDeviceName) ||
                 desc.DeviceName.Equals(monitorDeviceName, StringComparison.OrdinalIgnoreCase))
             {
@@ -75,18 +72,18 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
         _duplication = output1.DuplicateOutput(_d3dDevice);
         targetOutput.Dispose();
 
-        // Create a staging (CPU-readable) texture.
+        // Create a staging (CPU-readable) texture using correct Vortice 3.x API surface.
         var texDesc = new Texture2DDescription
         {
-            Width = WidthPx,
-            Height = HeightPx,
+            Width = (uint)WidthPx,
+            Height = (uint)HeightPx,
             MipLevels = 1,
             ArraySize = 1,
             Format = Format.B8G8R8A8_UNorm,
             SampleDescription = new SampleDescription(1, 0),
             Usage = ResourceUsage.Staging,
             BindFlags = BindFlags.None,
-            CpuAccessFlags = CpuAccessFlags.Read,
+            CPUAccessFlags = CpuAccessFlags.Read,
         };
         _stagingTexture = _d3dDevice.CreateTexture2D(texDesc);
 
@@ -120,16 +117,17 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
 
                     if (frameInfo.LastPresentTime > 0)
                     {
-                        using var texture = desktopResource.QueryInterface<ID3D11Texture2D>();
+                        using var texture = desktopResource!.QueryInterface<ID3D11Texture2D>();
                         _d3dContext!.CopyResource(_stagingTexture!, texture);
 
-                        var mapped = _d3dContext.Map(_stagingTexture!, 0, MapMode.Read, MapFlags.None);
+                        // Qualify MapFlags to resolve ambiguity between Vortice.DXGI and Vortice.Direct3D11.
+                        var mapped = _d3dContext.Map(_stagingTexture!, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
                         try
                         {
                             var bgraData = new byte[WidthPx * HeightPx * 4];
                             for (int row = 0; row < HeightPx; row++)
                             {
-                                var srcOffset = mapped.RowPitch * row;
+                                var srcOffset = (int)mapped.RowPitch * row;
                                 Marshal.Copy(
                                     IntPtr.Add(mapped.DataPointer, srcOffset),
                                     bgraData,
@@ -151,7 +149,7 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
                         }
                     }
 
-                    desktopResource.Dispose();
+                    desktopResource!.Dispose();
                     _duplication!.ReleaseFrame();
                 }
                 catch (OperationCanceledException)

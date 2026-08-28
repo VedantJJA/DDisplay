@@ -55,11 +55,11 @@ public class CoreTests
     }
 
     [Fact]
-    public void MockVirtualDisplayService_AddMonitor_Persists()
+    public async Task MockVirtualDisplayService_AddMonitor_Persists()
     {
         var svc = new MockVirtualDisplayService();
         var entry = new MonitorEntry { WidthPx = 1280, HeightPx = 720, RefreshRateHz = 60 };
-        svc.AddOrUpdateMonitorAsync(entry).Wait();
+        await svc.AddOrUpdateMonitorAsync(entry);
 
         var monitors = svc.GetMonitors();
         Assert.Single(monitors);
@@ -67,12 +67,12 @@ public class CoreTests
     }
 
     [Fact]
-    public void MockVirtualDisplayService_RemoveMonitor_Removes()
+    public async Task MockVirtualDisplayService_RemoveMonitor_Removes()
     {
         var svc = new MockVirtualDisplayService();
         var entry = new MonitorEntry { WidthPx = 1920, HeightPx = 1080, RefreshRateHz = 60 };
-        svc.AddOrUpdateMonitorAsync(entry).Wait();
-        svc.RemoveMonitorAsync(0).Wait();
+        await svc.AddOrUpdateMonitorAsync(entry);
+        await svc.RemoveMonitorAsync(0);
 
         Assert.Empty(svc.GetMonitors());
     }

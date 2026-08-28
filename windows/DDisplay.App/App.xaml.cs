@@ -5,7 +5,7 @@ using DDisplay.VddControl;
 
 namespace DDisplay.App;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private System.Windows.Forms.NotifyIcon? _trayIcon;
     private MainViewModel? _mainVm;

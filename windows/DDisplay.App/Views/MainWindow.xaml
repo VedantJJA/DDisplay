@@ -42,9 +42,19 @@
                             Margin="0,0,0,0">
                     <Button Content="Settings" Style="{StaticResource SecondaryButton}"
                             Margin="0,0,8,0" Click="Settings_Click"/>
-                    <Button Content="Install VDD" Style="{StaticResource SecondaryButton}"
-                            Visibility="{Binding IsVddInstalled, Converter={x:Static BooleanToVisibilityConverter+Instance}}"
-                            Click="InstallVdd_Click"/>
+                    <Button Content="Install VDD"
+                            Click="InstallVdd_Click">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsVddInstalled}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>
@@ -73,7 +83,7 @@
                                 <TextBlock Text="Transport" Style="{StaticResource TextCaption}" Margin="0,0,0,3"/>
                                 <TextBlock Text="{Binding TransportLabel}" Style="{StaticResource TextBody}"/>
                             </StackPanel>
-                            <Border Grid.Column="1" Style="{StaticResource StatusBadge}" VerticalAlignment="Center">
+                            <Border Grid.Column="1" VerticalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border" BasedOn="{StaticResource StatusBadge}">
                                         <Setter Property="Background" Value="{StaticResource ErrorBrush}"/>
@@ -84,7 +94,7 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>
-                                <TextBlock Style="{StaticResource TextCaption}" Foreground="White">
+                                <TextBlock Foreground="White">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock" BasedOn="{StaticResource TextCaption}">
                                             <Setter Property="Text" Value="Disconnected"/>
@@ -122,7 +132,7 @@
                     <TextBlock Text="Virtual Display" Style="{StaticResource TextTitle}" Margin="0,0,0,16"/>
 
                     <TextBlock Text="Driver Status" Style="{StaticResource TextCaption}" Margin="0,0,0,4"/>
-                    <Border Style="{StaticResource StatusBadge}" HorizontalAlignment="Left" Margin="0,0,0,16">
+                    <Border HorizontalAlignment="Left" Margin="0,0,0,16">
                         <Border.Style>
                             <Style TargetType="Border" BasedOn="{StaticResource StatusBadge}">
                                 <Setter Property="Background" Value="{StaticResource ErrorBrush}"/>

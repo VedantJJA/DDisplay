@@ -30,7 +30,7 @@ public abstract class TcpLanTransport : ITransport
     public event EventHandler<TransportDisconnectedEventArgs>? Disconnected;
     public event EventHandler? Connected;
 
-    public async Task ConnectAsync(CancellationToken cancellationToken = default)
+    public virtual async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         _listener = new TcpListener(GetListenEndPoint());
         _listener.Start();
@@ -55,7 +55,7 @@ public abstract class TcpLanTransport : ITransport
         Connected?.Invoke(this, EventArgs.Empty);
     }
 
-    public async Task DisconnectAsync(CancellationToken cancellationToken = default)
+    public virtual async Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
         _readLoopCts?.Cancel();
         _listener?.Stop();

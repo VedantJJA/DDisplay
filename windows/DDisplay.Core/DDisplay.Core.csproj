@@ -14,11 +14,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Vortice.Windows" Version="3.*" />
-    <PackageReference Include="Vortice.Direct3D11" Version="3.*" />
-    <PackageReference Include="Vortice.DXGI" Version="3.*" />
-    <PackageReference Include="System.Text.Json" Version="8.*" />
-    <PackageReference Include="Makaretu.Dns.Multicast" Version="0.27.*" />
+    <!-- Vortice.DirectX is the umbrella; Direct3D11 and DXGI are explicit for IDE resolution. -->
+    <PackageReference Include="Vortice.DirectX" Version="3.8.3" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
+    <!-- Bump System.Text.Json to satisfy SharpGen.Runtime transitive dependency (requires >= 9.0.1). -->
+    <PackageReference Include="System.Text.Json" Version="9.0.1" />
+    <PackageReference Include="Makaretu.Dns.Multicast" Version="0.27.0" />
   </ItemGroup>
 
   <ItemGroup>
