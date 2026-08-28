@@ -11,6 +11,19 @@ public sealed class MockVirtualDisplayService : IVirtualDisplayService
     private readonly List<MonitorEntry> _monitors = new();
 
     public bool IsDriverInstalled { get; set; } = true;
+    public bool IsDisplayEnabled { get; set; } = false;
+
+    public Task EnableDisplayAsync(CancellationToken cancellationToken = default)
+    {
+        IsDisplayEnabled = true;
+        return Task.CompletedTask;
+    }
+
+    public Task DisableDisplayAsync(CancellationToken cancellationToken = default)
+    {
+        IsDisplayEnabled = false;
+        return Task.CompletedTask;
+    }
 
     public IReadOnlyList<MonitorEntry> GetMonitors() => _monitors.AsReadOnly();
 

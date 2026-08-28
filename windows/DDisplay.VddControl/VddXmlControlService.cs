@@ -5,21 +5,13 @@ using DDisplay.VddControl.Models;
 namespace DDisplay.VddControl;
 
 /// <summary>
-/// Controls the Virtual Display Driver by reading and writing vdd_settings.xml,
-/// then triggering a driver reload via pnputil or device disable/enable.
-///
-/// TODO: Phase 0 must confirm which reload mechanism (pnputil restart-device, disable/enable
-/// via Device Manager COM, or a VDC-internal signal) is correct and reliable. The
-/// ReloadDriverAsync method currently uses pnputil as the primary attempt based on available
-/// documentation. Update after Phase 0 findings.
+/// Controls the Virtual Display Driver by managing monitor entries in vdd_settings.xml
+/// and dynamically enabling or disabling the virtual display adapter.
 /// </summary>
 public sealed class VddXmlControlService : IVirtualDisplayService
 {
     private readonly string _settingsFilePath;
-
-    // TODO: Confirm the exact device instance ID from Phase 0 Device Manager inspection.
-    // This value is a placeholder based on expected IddCx driver naming.
-    private const string VddDeviceInstanceIdPrefix = "ROOT\\IDDSAMPL";
+    private const string VddDeviceInstanceId = "ROOT\\DISPLAY\\0000";
 
     public VddXmlControlService(string settingsFilePath = VddInstallChecker.SettingsFilePath)
     {
@@ -27,6 +19,41 @@ public sealed class VddXmlControlService : IVirtualDisplayService
     }
 
     public bool IsDriverInstalled => VddInstallChecker.IsFullyInstalled();
+
+    public bool IsDisplayEnabled
+    {
+        get
+        {
+            try
+            {
+                var psi = new ProcessStartInfo("pnputil.exe", $"/enum-devices /instanceid \"{VddDeviceInstanceId}\"")
+                {
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                using var proc = Process.Start(psi);
+                if (proc is null) return false;
+                var output = proc.StandardOutput.ReadToEnd();
+                proc.WaitForExit();
+                return output.Contains("Status:                     Started", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    public async Task EnableDisplayAsync(CancellationToken cancellationToken = default)
+    {
+        await RunDriverScriptAsync("enable-display.bat", cancellationToken);
+    }
+
+    public async Task DisableDisplayAsync(CancellationToken cancellationToken = default)
+    {
+        await RunDriverScriptAsync("disable-display.bat", cancellationToken);
+    }
 
     public IReadOnlyList<MonitorEntry> GetMonitors()
     {
@@ -45,7 +72,6 @@ public sealed class VddXmlControlService : IVirtualDisplayService
 
         var monitors = ParseMonitors(doc).ToList();
 
-        // Find existing entry by index, or use the next available index.
         var existingIndex = monitors.FindIndex(m => m.Index == entry.Index);
         if (existingIndex >= 0)
             monitors[existingIndex] = entry;
@@ -77,21 +103,41 @@ public sealed class VddXmlControlService : IVirtualDisplayService
 
     public async Task ReloadDriverAsync(CancellationToken cancellationToken = default)
     {
-        // TODO: Phase 0 must determine the correct reload mechanism. Trying pnputil first.
-        // Alternative: disable/enable the device via Device Manager COM automation.
-        // Alternative: check if VDC exposes a named-pipe command or file signal.
-
-        var deviceId = await FindVddDeviceInstanceIdAsync(cancellationToken);
-        if (deviceId is null)
+        try
         {
-            throw new InvalidOperationException(
-                "VDD device not found in the system. Is the Virtual Display Driver installed?");
+            await RunPnputilAsync($"/restart-device \"{VddDeviceInstanceId}\"", cancellationToken);
         }
-
-        await RunPnputilAsync($"/restart-device \"{deviceId}\"", cancellationToken);
+        catch
+        {
+            // If pnputil restart is unavailable, use script
+            await RunDriverScriptAsync("enable-display.bat", cancellationToken);
+        }
     }
 
     // -- Private helpers --
+
+    private static async Task RunDriverScriptAsync(string scriptName, CancellationToken cancellationToken)
+    {
+        await Task.Run(() =>
+        {
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var scriptPath = Path.Combine(baseDir, @"..\..\..\..\..\driver", scriptName);
+            var fullScriptPath = Path.GetFullPath(scriptPath);
+
+            if (File.Exists(fullScriptPath))
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = fullScriptPath,
+                    UseShellExecute = true,
+                    Verb = "runas",
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                };
+                using var proc = Process.Start(psi);
+                proc?.WaitForExit(10000);
+            }
+        }, cancellationToken);
+    }
 
     private static XDocument CreateEmptyDocument()
     {
@@ -151,29 +197,6 @@ public sealed class VddXmlControlService : IVirtualDisplayService
 
             monitorsEl.Add(el);
         }
-    }
-
-    private static async Task<string?> FindVddDeviceInstanceIdAsync(CancellationToken cancellationToken)
-    {
-        // Use pnputil to enumerate all devices and look for the VDD hardware ID prefix.
-        var output = await RunPnputilAsync("/enum-devices /connected", cancellationToken);
-        var lines = output.Split('\n');
-
-        string? currentInstanceId = null;
-        foreach (var line in lines)
-        {
-            var trimmed = line.Trim();
-            if (trimmed.StartsWith("Instance ID:", StringComparison.OrdinalIgnoreCase))
-                currentInstanceId = trimmed["Instance ID:".Length..].Trim();
-
-            if (trimmed.StartsWith("Hardware IDs:", StringComparison.OrdinalIgnoreCase) &&
-                trimmed.Contains(VddDeviceInstanceIdPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                return currentInstanceId;
-            }
-        }
-
-        return null;
     }
 
     private static async Task<string> RunPnputilAsync(string args, CancellationToken cancellationToken)

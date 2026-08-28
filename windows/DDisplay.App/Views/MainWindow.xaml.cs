@@ -43,6 +43,14 @@ public partial class MainWindow : Window
         settings.ShowDialog();
     }
 
+    private async void ToggleDisplay_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm != null)
+        {
+            await Vm.ToggleDisplayAsync();
+        }
+    }
+
     private void InstallVdd_Click(object sender, RoutedEventArgs e)
     {
         try

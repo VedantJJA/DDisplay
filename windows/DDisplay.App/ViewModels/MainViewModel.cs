@@ -14,6 +14,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private string _transportLabel = "No transport";
     private bool _isConnected;
     private bool _isVddInstalled;
+    private bool _isDisplayEnabled;
     private bool _isStreaming;
 
     public MainViewModel(IVirtualDisplayService vddService, TransportManager transportManager)
@@ -22,9 +23,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _transportManager = transportManager;
 
         _isVddInstalled = vddService.IsDriverInstalled;
+        _isDisplayEnabled = vddService.IsDisplayEnabled;
+
         StatusText = _isVddInstalled
-            ? "Virtual Display Driver detected. Ready to connect."
-            : "Virtual Display Driver not found. Please install VDC.";
+            ? (_isDisplayEnabled ? "Virtual Display active. Ready to connect." : "Virtual Display standby. Connect mobile app to activate.")
+            : "Virtual Display Driver not found. Please install VDD.";
 
         _transportManager.TransportChanged += OnTransportChanged;
         _transportManager.StartMonitoring();
@@ -54,24 +57,69 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => SetField(ref _isVddInstalled, value);
     }
 
+    public bool IsDisplayEnabled
+    {
+        get => _isDisplayEnabled;
+        set => SetField(ref _isDisplayEnabled, value);
+    }
+
     public bool IsStreaming
     {
         get => _isStreaming;
         set => SetField(ref _isStreaming, value);
     }
 
+    public async Task ToggleDisplayAsync()
+    {
+        if (IsDisplayEnabled)
+        {
+            await _vddService.DisableDisplayAsync();
+            IsDisplayEnabled = false;
+            StatusText = "Virtual Display disconnected.";
+        }
+        else
+        {
+            await _vddService.EnableDisplayAsync();
+            IsDisplayEnabled = true;
+            StatusText = "Virtual Display connected.";
+        }
+    }
+
     public async Task ShutdownAsync()
     {
+        // Auto-disable virtual display on shutdown if not streaming
+        if (IsDisplayEnabled && !IsConnected)
+        {
+            await _vddService.DisableDisplayAsync();
+        }
         await _transportManager.StopMonitoringAsync();
     }
 
     private void OnTransportChanged(object? sender, TransportChangedEventArgs e)
     {
-        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        System.Windows.Application.Current.Dispatcher.Invoke(async () =>
         {
             IsConnected = e.Transport.IsConnected;
             TransportLabel = e.Transport.DisplayName;
             StatusText = $"Connected via {e.Transport.DisplayName}.";
+
+            // Dynamically manage virtual display: enable when device connects, disable when device disconnects
+            if (IsConnected)
+            {
+                if (!IsDisplayEnabled)
+                {
+                    await _vddService.EnableDisplayAsync();
+                    IsDisplayEnabled = true;
+                }
+            }
+            else
+            {
+                if (IsDisplayEnabled)
+                {
+                    await _vddService.DisableDisplayAsync();
+                    IsDisplayEnabled = false;
+                }
+            }
         });
     }
 

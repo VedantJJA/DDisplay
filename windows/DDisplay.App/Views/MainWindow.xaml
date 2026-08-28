@@ -135,7 +135,7 @@
                     <TextBlock Text="Virtual Display" Style="{StaticResource TextTitle}" Margin="0,0,0,16"/>
 
                     <TextBlock Text="Driver Status" Style="{StaticResource TextCaption}" Margin="0,0,0,4"/>
-                    <Border HorizontalAlignment="Left" Margin="0,0,0,16">
+                    <Border HorizontalAlignment="Left" Margin="0,0,0,12">
                         <Border.Style>
                             <Style TargetType="Border" BasedOn="{StaticResource StatusBadge}">
                                 <Setter Property="Background" Value="{StaticResource ErrorBrush}"/>
@@ -160,7 +160,36 @@
                         </TextBlock>
                     </Border>
 
-                    <TextBlock Text="When a device connects, DDisplay will automatically configure the virtual monitor to match the device's resolution."
+                    <TextBlock Text="Display Output" Style="{StaticResource TextCaption}" Margin="0,0,0,4"/>
+                    <Border HorizontalAlignment="Left" Margin="0,0,0,16">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+                                <Setter Property="Background" Value="{StaticResource SurfaceRaisedBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsDisplayEnabled}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource SuccessBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Foreground="White" FontSize="11">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="Standby (Disconnected)"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsDisplayEnabled}" Value="True">
+                                            <Setter Property="Text" Value="Active (Connected)"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
+
+                    <Button Content="Toggle Display" Style="{StaticResource SecondaryButton}"
+                            HorizontalAlignment="Left" Margin="0,0,0,14" Click="ToggleDisplay_Click"/>
+
+                    <TextBlock Text="The display dynamically activates when your mobile device connects and automatically disconnects on exit."
                                Style="{StaticResource TextCaption}" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>

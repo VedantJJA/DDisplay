@@ -121,7 +121,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getSupportedVideoCodecs(): List<String> {
-        val codecList = MediaCodecList(MediaCodecList.SECURE_CODECS_ONLY)
+        val codecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
         val supported = mutableSetOf<String>()
         for (info in codecList.codecInfos) {
             if (!info.isEncoder) {
