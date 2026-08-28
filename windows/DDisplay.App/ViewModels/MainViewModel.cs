@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using DDisplay.Core;
 using DDisplay.Core.Transport;
 using DDisplay.VddControl;
 
@@ -9,6 +10,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 {
     private readonly IVirtualDisplayService _vddService;
     private readonly TransportManager _transportManager;
+    private SessionCoordinator? _sessionCoordinator;
 
     private string _statusText = "Waiting for connection...";
     private string _transportLabel = "No transport";
@@ -87,7 +89,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public async Task ShutdownAsync()
     {
-        // Auto-disable virtual display on shutdown if not streaming
+        if (_sessionCoordinator != null)
+        {
+            await _sessionCoordinator.DisposeAsync();
+            _sessionCoordinator = null;
+        }
+
         if (IsDisplayEnabled && !IsConnected)
         {
             await _vddService.DisableDisplayAsync();
@@ -101,19 +108,42 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             IsConnected = e.Transport.IsConnected;
             TransportLabel = e.Transport.DisplayName;
-            StatusText = $"Connected via {e.Transport.DisplayName}.";
 
-            // Dynamically manage virtual display: enable when device connects, disable when device disconnects
             if (IsConnected)
             {
-                if (!IsDisplayEnabled)
+                StatusText = $"Connected via {e.Transport.DisplayName}. Streaming desktop...";
+                IsDisplayEnabled = true;
+
+                // Start Session Coordinator for live screen capture & encoding
+                if (_sessionCoordinator != null)
                 {
-                    await _vddService.EnableDisplayAsync();
-                    IsDisplayEnabled = true;
+                    await _sessionCoordinator.DisposeAsync();
                 }
+
+                _sessionCoordinator = new SessionCoordinator(e.Transport, _vddService);
+                _sessionCoordinator.StreamingStateChanged += (_, streaming) =>
+                {
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        IsStreaming = streaming;
+                        if (streaming)
+                        {
+                            StatusText = $"Streaming to device ({_sessionCoordinator.ActiveWidth}x{_sessionCoordinator.ActiveHeight})";
+                        }
+                    });
+                };
             }
             else
             {
+                StatusText = "Waiting for connection...";
+                IsStreaming = false;
+
+                if (_sessionCoordinator != null)
+                {
+                    await _sessionCoordinator.DisposeAsync();
+                    _sessionCoordinator = null;
+                }
+
                 if (IsDisplayEnabled)
                 {
                     await _vddService.DisableDisplayAsync();
