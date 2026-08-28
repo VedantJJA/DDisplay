@@ -17,10 +17,9 @@ private const val USB_ADB_HOST = "127.0.0.1"
 private const val NSD_SERVICE_TYPE = "_ddisplay._tcp."
 
 /**
- * Manages transport selection and auto-connection for the Android client.
- *
- * Runs an auto-listen loop that connects to the PC host whenever available
- * over USB (127.0.0.1:PORT via ADB reverse) or local Wi-Fi.
+ * Continuous polling client for Android.
+ * Polls at 1.5s in foreground and 5s in background mode.
+ * Automatically recovers and reconnects when disconnected.
  */
 class TransportManager(
     private val context: Context,
@@ -30,58 +29,42 @@ class TransportManager(
     private var transport: SocketTransport? = null
     private var nsdManager: NsdManager? = null
     private var isNsdDiscovering = false
-    private var autoListenJob: Job? = null
+    private var pollJob: Job? = null
+
+    var isBackgroundMode: Boolean = false
+        set(value) {
+            field = value
+            Log.d(TAG, "Background mode updated: $value (polling interval: ${if (value) 5000 else 1500}ms)")
+        }
 
     var onConnected: ((SocketTransport, String) -> Unit)? = null
-    var onConnectionFailed: ((String) -> Unit)? = null
+    var onDisconnected: ((String) -> Unit)? = null
     var onStatusChanged: ((String) -> Unit)? = null
 
-    /**
-     * Starts continuous auto-listening for PC connection.
-     */
-    fun startAutoListen() {
-        stopAutoListen()
-        autoListenJob = scope.launch {
+    fun startPolling() {
+        stopPolling()
+        pollJob = scope.launch {
             while (isActive) {
                 if (transport == null || transport?.isConnected != true) {
-                    // Try USB-ADB (localhost reverse tunnel)
-                    if (tryConnect(USB_ADB_HOST, "USB")) {
-                        break
+                    val connected = tryConnect(USB_ADB_HOST, "USB")
+                    if (!connected) {
+                        startNsdBrowse()
                     }
                 }
-                delay(2000L)
+
+                val interval = if (isBackgroundMode) 5000L else 1500L
+                delay(interval)
             }
         }
-        startNsdBrowse()
     }
 
-    fun stopAutoListen() {
-        autoListenJob?.cancel()
-        autoListenJob = null
+    fun stopPolling() {
+        pollJob?.cancel()
+        pollJob = null
         stopNsdBrowse()
     }
 
-    /**
-     * Manually triggers a single connection attempt.
-     */
-    fun connectAuto() {
-        scope.launch {
-            if (tryConnect(USB_ADB_HOST, "USB")) return@launch
-            startNsdBrowse()
-        }
-    }
-
-    /**
-     * Connects directly to a manually-specified host IP.
-     */
-    fun connectManual(host: String) {
-        scope.launch {
-            tryConnect(host, "Wi-Fi (manual)")
-        }
-    }
-
     fun disconnect() {
-        stopAutoListen()
         transport?.disconnect()
         transport = null
     }
@@ -91,13 +74,20 @@ class TransportManager(
             val t = SocketTransport(host, port)
             withContext(Dispatchers.IO) { t.connect() }
             transport = t
+
+            t.onDisconnected = { reason ->
+                transport = null
+                scope.launch(Dispatchers.Main) {
+                    onDisconnected?.invoke(reason)
+                }
+            }
+
             t.startReadLoop(scope)
-            withContext(Dispatchers.Main) { 
-                onConnected?.invoke(t, label) 
+            withContext(Dispatchers.Main) {
+                onConnected?.invoke(t, label)
             }
             true
         } catch (e: Exception) {
-            Log.d(TAG, "Attempt to connect to $host via $label: ${e.message}")
             false
         }
     }
@@ -149,7 +139,9 @@ class TransportManager(
                     override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {}
                     override fun onServiceResolved(info: NsdServiceInfo) {
                         val host = info.host?.hostAddress ?: return
-                        scope.launch { tryConnect(host, "Wi-Fi (NSD)") }
+                        if (transport == null || transport?.isConnected != true) {
+                            scope.launch { tryConnect(host, "Wi-Fi (NSD)") }
+                        }
                     }
                 })
             } catch (e: Exception) {

@@ -155,6 +155,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 }
 
                 _sessionCoordinator = new SessionCoordinator(e.Transport, _vddService);
+                _sessionCoordinator.TestDataProgress += (_, stats) =>
+                {
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        StatusText = $"Connected ({TransportLabel}) | Packets: {stats.Packets} | Data: {stats.Bytes / 1024.0:F1} KB | Latency: {stats.RttMs}ms";
+                    });
+                };
                 _sessionCoordinator.StreamingStateChanged += (_, streaming) =>
                 {
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -162,7 +169,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                         IsStreaming = streaming;
                         if (streaming)
                         {
-                            StatusText = $"Streaming to device ({_sessionCoordinator.ActiveWidth}x{_sessionCoordinator.ActiveHeight})";
+                            StatusText = $"Connected ({TransportLabel}) - Exchanging test data...";
                         }
                     });
                 };

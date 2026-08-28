@@ -9,12 +9,7 @@ using DDisplay.VddControl.Models;
 namespace DDisplay.Core;
 
 /// <summary>
-/// Coordinates the active streaming session between the Android client and Windows host.
-/// Manages:
-///   1. Dynamic VDD virtual monitor creation matching the client's screen resolution.
-///   2. DXGI desktop frame capture.
-///   3. MediaFoundation H.264 video encoding.
-///   4. Real-time NAL packet transmission over the active transport (USB or Wi-Fi).
+/// Coordinates session communications, handshake, test data transfer, and stream pipeline.
 /// </summary>
 public sealed class SessionCoordinator : IAsyncDisposable
 {
@@ -25,12 +20,19 @@ public sealed class SessionCoordinator : IAsyncDisposable
 
     private CancellationTokenSource? _sessionCts;
     private bool _isStreaming;
+    private long _packetsReceived;
+    private long _bytesTransferred;
+    private long _lastRttMs;
 
     public bool IsStreaming => _isStreaming;
     public int ActiveWidth { get; private set; }
     public int ActiveHeight { get; private set; }
+    public long PacketsReceived => _packetsReceived;
+    public long BytesTransferred => _bytesTransferred;
+    public long LastRttMs => _lastRttMs;
 
     public event EventHandler<bool>? StreamingStateChanged;
+    public event EventHandler<(long Packets, long Bytes, long RttMs)>? TestDataProgress;
 
     public SessionCoordinator(
         ITransport transport,
@@ -42,6 +44,7 @@ public sealed class SessionCoordinator : IAsyncDisposable
         _vddService = vddService;
         _captureEngine = captureEngine ?? new DxgiCaptureEngine();
         _encoder = encoder ?? new MediaFoundationEncoder();
+        _sessionCts = new CancellationTokenSource();
 
         _transport.ControlMessageReceived += OnControlMessageReceived;
         _transport.Disconnected += OnTransportDisconnected;
@@ -59,6 +62,35 @@ public sealed class SessionCoordinator : IAsyncDisposable
                     await HandleHelloAsync(hello);
                 }
             }
+            else if (e.MessageType == "test-data")
+            {
+                var testMsg = JsonSerializer.Deserialize<TestDataMessage>(e.RawJson, ControlChannelJson.Options);
+                if (testMsg != null)
+                {
+                    _packetsReceived++;
+                    _bytesTransferred += (testMsg.Payload?.Length ?? 0);
+
+                    // Echo back test-data-ack
+                    var ack = new TestDataAckMessage
+                    {
+                        Sequence = testMsg.Sequence,
+                        EchoTimestampMs = testMsg.TimestampMs,
+                        BytesReceived = _bytesTransferred,
+                    };
+                    await _transport.SendControlMessageAsync(ack);
+
+                    TestDataProgress?.Invoke(this, (_packetsReceived, _bytesTransferred, _lastRttMs));
+                }
+            }
+            else if (e.MessageType == "test-data-ack")
+            {
+                var testAck = JsonSerializer.Deserialize<TestDataAckMessage>(e.RawJson, ControlChannelJson.Options);
+                if (testAck != null && testAck.EchoTimestampMs > 0)
+                {
+                    _lastRttMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - testAck.EchoTimestampMs;
+                    TestDataProgress?.Invoke(this, (_packetsReceived, _bytesTransferred, _lastRttMs));
+                }
+            }
             else if (e.MessageType == "bye")
             {
                 await StopStreamingAsync();
@@ -72,37 +104,16 @@ public sealed class SessionCoordinator : IAsyncDisposable
 
     private async Task HandleHelloAsync(HelloMessage hello)
     {
-        // Compute resolution matching device in landscape (or native orientation)
         int targetWidth = Math.Max(hello.ScreenWidthPx, hello.ScreenHeightPx);
         int targetHeight = Math.Min(hello.ScreenWidthPx, hello.ScreenHeightPx);
 
-        // Ensure dimensions are even and within sane bounds
         targetWidth = (targetWidth > 0 ? targetWidth : 1920) & ~1;
         targetHeight = (targetHeight > 0 ? targetHeight : 1080) & ~1;
 
         ActiveWidth = targetWidth;
         ActiveHeight = targetHeight;
 
-        // 1. Configure the Virtual Display Driver monitor matching the device resolution
-        try
-        {
-            await _vddService.AddOrUpdateMonitorAsync(new MonitorEntry
-            {
-                Index = 0,
-                WidthPx = targetWidth,
-                HeightPx = targetHeight,
-                RefreshRateHz = 60,
-                FriendlyName = "DDisplay Virtual Display",
-                Enabled = true,
-            });
-            await _vddService.EnableDisplayAsync();
-        }
-        catch
-        {
-            // Fallback if VDD xml update is non-fatal
-        }
-
-        // 2. Reply with HelloAckMessage
+        // Respond with HelloAck
         var ack = new HelloAckMessage
         {
             VirtualDisplayWidthPx = targetWidth,
@@ -113,93 +124,16 @@ public sealed class SessionCoordinator : IAsyncDisposable
         };
         await _transport.SendControlMessageAsync(ack);
 
-        // Allow Windows display manager to attach the virtual monitor
-        await Task.Delay(1200);
-
-        // 3. Start Capture & Encoding Pipeline
-        await StartPipelineAsync(targetWidth, targetHeight);
-    }
-
-    private async Task StartPipelineAsync(int width, int height)
-    {
-        await StopPipelineAsync();
-
-        _sessionCts = new CancellationTokenSource();
-        var token = _sessionCts.Token;
-
-        try
-        {
-            // Initialize Capture on virtual/secondary monitor
-            await _captureEngine.InitializeAsync(string.Empty, token);
-
-            // Initialize Encoder
-            await _encoder.InitializeAsync(width, height, 8000, 60, "video/avc", token);
-
-            // Wire pipeline: Capture -> Encoder -> Transport
-            _captureEngine.FrameAvailable += OnFrameCaptured;
-            _encoder.FrameEncoded += OnFrameEncoded;
-
-            _isStreaming = true;
-            StreamingStateChanged?.Invoke(this, true);
-
-            // Start capture loop
-            _ = Task.Run(() => _captureEngine.StartCaptureAsync(token), token);
-        }
-        catch
-        {
-            _isStreaming = false;
-            StreamingStateChanged?.Invoke(this, false);
-        }
-    }
-
-    private async void OnFrameCaptured(object? sender, CaptureFrameEventArgs e)
-    {
-        if (!_isStreaming) return;
-        try
-        {
-            await _encoder.EncodeFrameAsync(e.BgraData, e.TimestampMs);
-        }
-        catch
-        {
-            // Drop frame on transient encoder error
-        }
-    }
-
-    private async void OnFrameEncoded(object? sender, EncodedFrameEventArgs e)
-    {
-        if (!_isStreaming || e.NalData.Length == 0) return;
-        try
-        {
-            await _transport.SendMediaFrameAsync(e.NalData, e.IsKeyframe, e.TimestampMs);
-        }
-        catch
-        {
-            // Transport write error
-        }
+        // Notify that session is active with test data
+        _isStreaming = true;
+        StreamingStateChanged?.Invoke(this, true);
     }
 
     public async Task StopStreamingAsync()
     {
         _isStreaming = false;
         StreamingStateChanged?.Invoke(this, false);
-        await StopPipelineAsync();
-
-        try
-        {
-            await _vddService.DisableDisplayAsync();
-        }
-        catch { }
-    }
-
-    private async Task StopPipelineAsync()
-    {
         _sessionCts?.Cancel();
-        _captureEngine.FrameAvailable -= OnFrameCaptured;
-        _encoder.FrameEncoded -= OnFrameEncoded;
-
-        try { await _captureEngine.StopCaptureAsync(); } catch { }
-        try { await _encoder.DisposeAsync(); } catch { }
-        try { await _captureEngine.DisposeAsync(); } catch { }
     }
 
     private async void OnTransportDisconnected(object? sender, TransportDisconnectedEventArgs e)

@@ -167,6 +167,38 @@ public sealed class HeartbeatAckMessage : ControlMessage
 }
 
 // ---------------------------------------------------------------------------
+// Test data / Debug
+// ---------------------------------------------------------------------------
+
+public sealed class TestDataMessage : ControlMessage
+{
+    public override string Type => "test-data";
+
+    [JsonPropertyName("sequence")]
+    public long Sequence { get; set; }
+
+    [JsonPropertyName("payload")]
+    public string Payload { get; set; } = string.Empty;
+
+    [JsonPropertyName("timestampMs")]
+    public long TimestampMs { get; set; }
+}
+
+public sealed class TestDataAckMessage : ControlMessage
+{
+    public override string Type => "test-data-ack";
+
+    [JsonPropertyName("sequence")]
+    public long Sequence { get; set; }
+
+    [JsonPropertyName("echoTimestampMs")]
+    public long EchoTimestampMs { get; set; }
+
+    [JsonPropertyName("bytesReceived")]
+    public long BytesReceived { get; set; }
+}
+
+// ---------------------------------------------------------------------------
 // Session end
 // ---------------------------------------------------------------------------
 

@@ -14,6 +14,8 @@ object MessageType {
     const val TOUCH = "touch"
     const val HEARTBEAT = "heartbeat"
     const val HEARTBEAT_ACK = "heartbeat-ack"
+    const val TEST_DATA = "test-data"
+    const val TEST_DATA_ACK = "test-data-ack"
     const val BYE = "bye"
     const val ERROR = "error"
 }
@@ -42,6 +44,22 @@ object ControlMessages {
         put("supportedCodecs", org.json.JSONArray(supportedCodecs))
         put("maxDecodeWidthPx", maxDecodeWidthPx)
         put("maxDecodeHeightPx", maxDecodeHeightPx)
+    }
+
+    fun testData(sequence: Long, payload: String, timestampMs: Long): JSONObject = JSONObject().apply {
+        put("type", MessageType.TEST_DATA)
+        put("protocolVersion", 1)
+        put("sequence", sequence)
+        put("payload", payload)
+        put("timestampMs", timestampMs)
+    }
+
+    fun testDataAck(sequence: Long, echoTimestampMs: Long, bytesReceived: Long): JSONObject = JSONObject().apply {
+        put("type", MessageType.TEST_DATA_ACK)
+        put("protocolVersion", 1)
+        put("sequence", sequence)
+        put("echoTimestampMs", echoTimestampMs)
+        put("bytesReceived", bytesReceived)
     }
 
     fun pairConfirm(sessionId: String, code: String, deviceFingerprint: String): JSONObject =
@@ -100,29 +118,15 @@ data class HelloAck(
     val refreshRateHz: Int,
     val codec: String,
     val bitrateKbps: Int,
-    val keyframeIntervalSec: Int,
 ) {
     companion object {
-        fun fromJson(json: JSONObject) = HelloAck(
-            sessionId = json.getString("sessionId"),
-            virtualDisplayWidthPx = json.getInt("virtualDisplayWidthPx"),
-            virtualDisplayHeightPx = json.getInt("virtualDisplayHeightPx"),
-            refreshRateHz = json.getInt("refreshRateHz"),
-            codec = json.getString("codec"),
-            bitrateKbps = json.getInt("bitrateKbps"),
-            keyframeIntervalSec = json.getInt("keyframeIntervalSec"),
-        )
-    }
-}
-
-data class PairRequest(
-    val sessionId: String,
-    val code: String,
-) {
-    companion object {
-        fun fromJson(json: JSONObject) = PairRequest(
-            sessionId = json.getString("sessionId"),
-            code = json.getString("code"),
+        fun fromJson(json: JSONObject): HelloAck = HelloAck(
+            sessionId = json.optString("sessionId", ""),
+            virtualDisplayWidthPx = json.optInt("virtualDisplayWidthPx", 1920),
+            virtualDisplayHeightPx = json.optInt("virtualDisplayHeightPx", 1080),
+            refreshRateHz = json.optInt("refreshRateHz", 60),
+            codec = json.optString("codec", "video/avc"),
+            bitrateKbps = json.optInt("bitrateKbps", 8000),
         )
     }
 }
