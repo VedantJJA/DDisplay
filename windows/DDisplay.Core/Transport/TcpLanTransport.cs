@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -8,8 +9,7 @@ namespace DDisplay.Core.Transport;
 
 /// <summary>
 /// Shared base implementation for TCP-based transports (Wi-Fi and USB tethering).
-/// Handles framing, JSON control messages, and media frame writing.
-/// Subclasses only need to implement the address/listener setup.
+/// Handles framing, JSON control messages, media frame writing, and message buffering.
 /// </summary>
 public abstract class TcpLanTransport : ITransport
 {
@@ -19,6 +19,8 @@ public abstract class TcpLanTransport : ITransport
     private MediaFrameWriter? _frameWriter;
     private CancellationTokenSource? _readLoopCts;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
+    private readonly ConcurrentQueue<ControlMessageReceivedEventArgs> _unhandledMessageQueue = new();
+    private EventHandler<ControlMessageReceivedEventArgs>? _controlMessageReceived;
     private bool _isListening;
 
     protected abstract IPEndPoint GetListenEndPoint();
@@ -28,7 +30,23 @@ public abstract class TcpLanTransport : ITransport
     public bool IsConnected => _client?.Connected ?? false;
     public bool IsListening => _isListening;
 
-    public event EventHandler<ControlMessageReceivedEventArgs>? ControlMessageReceived;
+    public event EventHandler<ControlMessageReceivedEventArgs>? ControlMessageReceived
+    {
+        add
+        {
+            _controlMessageReceived += value;
+            // Drain any messages that arrived before subscription
+            while (_unhandledMessageQueue.TryDequeue(out var queuedMsg))
+            {
+                value?.Invoke(this, queuedMsg);
+            }
+        }
+        remove
+        {
+            _controlMessageReceived -= value;
+        }
+    }
+
     public event EventHandler<TransportDisconnectedEventArgs>? Disconnected;
     public event EventHandler? Connected;
 
@@ -167,11 +185,23 @@ public abstract class TcpLanTransport : ITransport
                     var json = Encoding.UTF8.GetString(payload);
                     using var doc = JsonDocument.Parse(json);
                     var type = doc.RootElement.GetProperty("type").GetString() ?? string.Empty;
-                    ControlMessageReceived?.Invoke(this, new ControlMessageReceivedEventArgs
+
+                    var args = new ControlMessageReceivedEventArgs
                     {
                         RawJson = json,
                         MessageType = type,
-                    });
+                    };
+
+                    var handler = _controlMessageReceived;
+                    if (handler != null)
+                    {
+                        handler.Invoke(this, args);
+                    }
+                    else
+                    {
+                        // Buffer message until a listener attaches
+                        _unhandledMessageQueue.Enqueue(args);
+                    }
                 }
             }
         }

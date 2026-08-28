@@ -11,18 +11,11 @@ import java.io.DataOutputStream
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * TCP socket transport shared by both the USB-ADB and Wi-Fi paths.
- *
- * On the USB-ADB path, the Windows host has set up `adb reverse tcp:7878 tcp:7878`
- * so the phone connects to 127.0.0.1:7878 -- this socket just connects there.
- * On the Wi-Fi path, it connects to the host IP discovered via NSD or entered manually.
- *
- * Frame format (SPEC.md):
- *   [4-byte big-endian payload length][1-byte channel tag][payload]
- *
- * Control channel tag = 0x01, media channel tag = 0x02.
+ * Buffers control messages so none are lost during activity/handler transitions.
  */
 class SocketTransport(
     private val host: String,
@@ -37,8 +30,19 @@ class SocketTransport(
     private var input: DataInputStream? = null
     private var output: DataOutputStream? = null
     private var readJob: Job? = null
+    private val messageQueue = ConcurrentLinkedQueue<JSONObject>()
 
     var onControlMessageReceived: ((JSONObject) -> Unit)? = null
+        set(value) {
+            field = value
+            if (value != null) {
+                while (!messageQueue.isEmpty()) {
+                    val msg = messageQueue.poll() ?: break
+                    value.invoke(msg)
+                }
+            }
+        }
+
     var onMediaFrameReceived: ((ByteArray, Boolean, Long) -> Unit)? = null
     var onDisconnected: ((String) -> Unit)? = null
 
@@ -65,10 +69,14 @@ class SocketTransport(
                     when (tag) {
                         TAG_CONTROL -> {
                             val json = JSONObject(String(payload, Charsets.UTF_8))
-                            onControlMessageReceived?.invoke(json)
+                            val handler = onControlMessageReceived
+                            if (handler != null) {
+                                handler.invoke(json)
+                            } else {
+                                messageQueue.add(json)
+                            }
                         }
                         TAG_MEDIA -> {
-                            // Payload: [1-byte flags][4-byte PTS ms][NAL data]
                             if (payload.size >= 5) {
                                 val flags = payload[0]
                                 val isKeyframe = (flags.toInt() and 0x01) != 0
