@@ -128,7 +128,7 @@
         android:id="@+id/cardUsbHint"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="16dp"
         app:cardBackgroundColor="@color/color_surface"
         app:cardCornerRadius="12dp"
         app:cardElevation="0dp"
@@ -149,7 +149,7 @@
                 android:layout_height="24dp"
                 android:src="@drawable/ic_usb"
                 android:layout_marginEnd="14dp"
-                android:tint="@color/color_text_secondary"/>
+                app:tint="@color/color_text_secondary"/>
 
             <TextView
                 android:layout_width="0dp"
@@ -158,6 +158,57 @@
                 android:text="@string/label_usb_hint"
                 android:textColor="@color/color_text_secondary"
                 android:textSize="12sp"/>
+
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Background Listener Card -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cardBackgroundMode"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        app:cardBackgroundColor="@color/color_surface"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="0dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/cardUsbHint">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="16dp"
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Run in Background"
+                    android:textColor="@color/color_text_primary"
+                    android:textSize="14sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Keep listening for one-click connect from PC"
+                    android:textColor="@color/color_text_secondary"
+                    android:textSize="12sp"
+                    android:layout_marginTop="2dp"/>
+            </LinearLayout>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchBackgroundMode"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
 
         </LinearLayout>
     </androidx.cardview.widget.CardView>

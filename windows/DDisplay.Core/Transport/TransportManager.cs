@@ -21,9 +21,9 @@ public sealed class TransportManager : IAsyncDisposable
     private ITransport? _activeTransport;
     private CancellationTokenSource? _monitorCts;
 
-    public TransportManager(string adbPath = "adb", int port = WifiTransport.DefaultPort)
+    public TransportManager(string? adbPath = null, int port = WifiTransport.DefaultPort)
     {
-        _adbPath = adbPath;
+        _adbPath = AdbUsbTransport.ResolveAdbPath(adbPath);
         _port = port;
     }
 

@@ -14,6 +14,7 @@
     <!-- Foreground service for sustained streaming -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <!-- Keep screen on while streaming -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>

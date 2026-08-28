@@ -21,10 +21,30 @@ public sealed class AdbUsbTransport : TcpLanTransport
     private readonly int _port;
     private string? _deviceSerial;
 
-    public AdbUsbTransport(string adbPath = "adb", int port = DefaultPort)
+    public AdbUsbTransport(string? adbPath = null, int port = DefaultPort)
     {
-        _adbPath = adbPath;
+        _adbPath = ResolveAdbPath(adbPath);
         _port = port;
+    }
+
+    public static string ResolveAdbPath(string? customPath = null)
+    {
+        if (!string.IsNullOrEmpty(customPath) && File.Exists(customPath)) return customPath;
+
+        // Check LocalAppData Android SDK
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var sdkAdb = Path.Combine(localAppData, @"Android\Sdk\platform-tools\adb.exe");
+        if (File.Exists(sdkAdb)) return sdkAdb;
+
+        // Check ANDROID_HOME / ANDROID_SDK_ROOT
+        var androidHome = Environment.GetEnvironmentVariable("ANDROID_HOME") ?? Environment.GetEnvironmentVariable("ANDROID_SDK_ROOT");
+        if (!string.IsNullOrEmpty(androidHome))
+        {
+            var homeAdb = Path.Combine(androidHome, @"platform-tools\adb.exe");
+            if (File.Exists(homeAdb)) return homeAdb;
+        }
+
+        return "adb";
     }
 
     public override string DisplayName => "USB (ADB)";
