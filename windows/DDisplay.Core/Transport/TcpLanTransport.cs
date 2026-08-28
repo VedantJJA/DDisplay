@@ -19,12 +19,14 @@ public abstract class TcpLanTransport : ITransport
     private MediaFrameWriter? _frameWriter;
     private CancellationTokenSource? _readLoopCts;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
+    private bool _isListening;
 
     protected abstract IPEndPoint GetListenEndPoint();
 
     public abstract string DisplayName { get; }
 
     public bool IsConnected => _client?.Connected ?? false;
+    public bool IsListening => _isListening;
 
     public event EventHandler<ControlMessageReceivedEventArgs>? ControlMessageReceived;
     public event EventHandler<TransportDisconnectedEventArgs>? Disconnected;
@@ -32,16 +34,29 @@ public abstract class TcpLanTransport : ITransport
 
     public virtual async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
+        await DisconnectAsync(CancellationToken.None);
+
         _listener = new TcpListener(GetListenEndPoint());
+        _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        _listener.ExclusiveAddressUse = false;
         _listener.Start();
+        _isListening = true;
 
         try
         {
             _client = await _listener.AcceptTcpClientAsync(cancellationToken);
+            _isListening = false;
         }
         catch (OperationCanceledException)
         {
-            _listener.Stop();
+            _isListening = false;
+            try { _listener.Stop(); } catch { }
+            throw;
+        }
+        catch (Exception)
+        {
+            _isListening = false;
+            try { _listener.Stop(); } catch { }
             throw;
         }
 
@@ -55,24 +70,34 @@ public abstract class TcpLanTransport : ITransport
         Connected?.Invoke(this, EventArgs.Empty);
     }
 
-    public virtual async Task DisconnectAsync(CancellationToken cancellationToken = default)
+    public virtual Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
+        _isListening = false;
         _readLoopCts?.Cancel();
-        _listener?.Stop();
+        try { _listener?.Stop(); } catch { }
+        _listener = null;
 
         if (_stream is not null)
         {
             try
             {
-                await SendControlMessageAsync(new ByeMessage { Reason = "user-disconnect" }, cancellationToken);
+                var json = JsonSerializer.Serialize(new ByeMessage { Reason = "user-disconnect" }, typeof(ByeMessage), ControlChannelJson.Options);
+                var jsonBytes = Encoding.UTF8.GetBytes(json);
+                var header = new byte[5];
+                System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(header, jsonBytes.Length);
+                header[4] = FrameReader.ControlChannelTag;
+                _stream.Write(header, 0, 5);
+                _stream.Write(jsonBytes, 0, jsonBytes.Length);
+                _stream.Flush();
             }
             catch { /* best-effort */ }
         }
 
-        _client?.Close();
-        _stream?.Dispose();
+        try { _client?.Close(); } catch { }
+        try { _stream?.Dispose(); } catch { }
         _client = null;
         _stream = null;
+        return Task.CompletedTask;
     }
 
     public async Task SendControlMessageAsync(ControlMessage message, CancellationToken cancellationToken = default)
@@ -93,6 +118,7 @@ public abstract class TcpLanTransport : ITransport
         {
             await _stream.WriteAsync(header, cancellationToken);
             await _stream.WriteAsync(jsonBytes, cancellationToken);
+            await _stream.FlushAsync(cancellationToken);
         }
         finally
         {
@@ -131,7 +157,6 @@ public abstract class TcpLanTransport : ITransport
                 var frame = await reader.ReadFrameAsync(cancellationToken);
                 if (frame is null)
                 {
-                    // Remote closed the connection.
                     RaiseDisconnected("Remote closed connection.", null);
                     return;
                 }
@@ -148,12 +173,11 @@ public abstract class TcpLanTransport : ITransport
                         MessageType = type,
                     });
                 }
-                // Media frames from client -> host are not expected in v1 (touch goes via control channel).
             }
         }
         catch (OperationCanceledException)
         {
-            // Normal shutdown.
+            // Normal shutdown
         }
         catch (Exception ex)
         {

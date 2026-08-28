@@ -1,9 +1,11 @@
 package com.ddisplay.app.render
 
 import android.os.Bundle
+import android.view.SurfaceHolder
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import com.ddisplay.app.databinding.ActivityRenderBinding
 import com.ddisplay.app.decode.MediaCodecDecoder
@@ -12,11 +14,7 @@ import com.ddisplay.app.transport.SocketTransport
 
 /**
  * Full-screen activity for rendering the decoded video stream.
- * Uses ActivityRenderBinding (ViewBinding) for the SurfaceView reference.
- *
- * This activity receives an already-connected SocketTransport and a configured decoder
- * via a companion object singleton (simple approach for v1 -- replace with a
- * bound service or ViewModel in Phase 9 polish).
+ * Renders hardware-decoded frames directly onto SurfaceView.
  */
 class RenderActivity : AppCompatActivity() {
 
@@ -25,11 +23,10 @@ class RenderActivity : AppCompatActivity() {
     private var touchCapture: TouchCapture? = null
 
     companion object {
-        // Set before starting this activity.
         var activeTransport: SocketTransport? = null
         var codecMime: String = "video/avc"
-        var displayWidthPx: Int = 1080
-        var displayHeightPx: Int = 1920
+        var displayWidthPx: Int = 1920
+        var displayHeightPx: Int = 1080
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,40 +36,50 @@ class RenderActivity : AppCompatActivity() {
 
         enterImmersiveMode()
 
-        val transport = activeTransport ?: run { finish(); return }
+        val transport = activeTransport ?: run { 
+            finish()
+            return 
+        }
 
-        // Set up decoder with the surface from the SurfaceView.
-        binding.surfaceView.holder.addCallback(object : android.view.SurfaceHolder.Callback {
-            override fun surfaceCreated(holder: android.view.SurfaceHolder) {
+        transport.onDisconnected = {
+            runOnUiThread {
+                finish()
+            }
+        }
+
+        binding.surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) {
                 val dec = MediaCodecDecoder(codecMime, holder.surface)
                 dec.configure(displayWidthPx, displayHeightPx)
                 dec.start()
                 decoder = dec
 
-                // Wire media frames from the transport directly to the decoder.
                 transport.onMediaFrameReceived = { nalData, isKeyframe, pts ->
                     dec.submitFrame(nalData, isKeyframe, pts)
                 }
 
-                // Wire touch events.
                 val tc = TouchCapture(transport)
                 touchCapture = tc
                 binding.surfaceView.setOnTouchListener(tc)
 
-                // HUD toggle on single tap via GestureDetector.
                 binding.surfaceView.setOnClickListener {
                     val hud = binding.hudOverlay
                     hud.visibility = if (hud.visibility == View.VISIBLE) View.GONE else View.VISIBLE
                 }
             }
 
-            override fun surfaceChanged(holder: android.view.SurfaceHolder, format: Int, width: Int, height: Int) {}
-            override fun surfaceDestroyed(holder: android.view.SurfaceHolder) {
+            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
+
+            override fun surfaceDestroyed(holder: SurfaceHolder) {
+                transport.onMediaFrameReceived = null
                 decoder?.stop()
+                decoder?.release()
+                decoder = null
             }
         })
 
         binding.hudOverlay.visibility = View.GONE
+        binding.tvHudResolution.text = "${displayWidthPx}x${displayHeightPx}"
 
         binding.btnStopStreaming.setOnClickListener {
             transport.disconnect()
@@ -81,7 +88,9 @@ class RenderActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        activeTransport?.onMediaFrameReceived = null
         decoder?.release()
+        decoder = null
         super.onDestroy()
     }
 
@@ -100,8 +109,8 @@ class RenderActivity : AppCompatActivity() {
                     or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                     or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                     or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                )
+            )
         }
-        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 }

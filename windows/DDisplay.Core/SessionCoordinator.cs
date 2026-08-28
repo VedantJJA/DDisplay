@@ -113,6 +113,9 @@ public sealed class SessionCoordinator : IAsyncDisposable
         };
         await _transport.SendControlMessageAsync(ack);
 
+        // Allow Windows display manager to attach the virtual monitor
+        await Task.Delay(1200);
+
         // 3. Start Capture & Encoding Pipeline
         await StartPipelineAsync(targetWidth, targetHeight);
     }
