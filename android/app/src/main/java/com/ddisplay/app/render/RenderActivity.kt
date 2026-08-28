@@ -1,9 +1,6 @@
 package com.ddisplay.app.render
 
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Paint
 import android.os.Bundle
 import android.util.Base64
 import android.view.View
@@ -23,17 +20,13 @@ import org.json.JSONObject
 
 /**
  * Full-screen activity for rendering the Windows desktop display.
- * Supports unified canvas compositing: full frames, dirty tile patches, and client-side cursor overlays.
+ * Renders live desktop frames, tracks cursor overlays, and captures touch input.
  */
 class RenderActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityRenderBinding
     private var touchCapture: TouchCapture? = null
     private val scope = CoroutineScope(Dispatchers.Main)
-
-    private var screenCanvasBitmap: Bitmap? = null
-    private var screenCanvas: Canvas? = null
-    private val canvasPaint = Paint(Paint.FILTER_BITMAP_FLAG)
 
     companion object {
         var activeTransport: SocketTransport? = null
@@ -48,7 +41,6 @@ class RenderActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         enterImmersiveMode()
-        initCanvas(displayWidthPx, displayHeightPx)
 
         val transport = activeTransport ?: run {
             finish()
@@ -57,13 +49,17 @@ class RenderActivity : AppCompatActivity() {
 
         transport.onDisconnected = {
             runOnUiThread {
-                finish()
+                if (!isFinishing && !isDestroyed) {
+                    finish()
+                }
             }
         }
 
-        // Handle incoming screenshot, patch, cursor, and control messages
+        // Handle incoming screenshot, cursor, and control messages
         transport.onControlMessageReceived = { json ->
-            handleControlMessage(json)
+            try {
+                handleControlMessage(json)
+            } catch (_: Exception) {}
         }
 
         val tc = TouchCapture(transport)
@@ -97,74 +93,37 @@ class RenderActivity : AppCompatActivity() {
         }
     }
 
-    @Synchronized
-    private fun initCanvas(w: Int, h: Int) {
-        val width = if (w > 0) w else 1920
-        val height = if (h > 0) h else 1080
-
-        if (screenCanvasBitmap == null || screenCanvasBitmap?.width != width || screenCanvasBitmap?.height != height) {
-            screenCanvasBitmap?.recycle()
-            val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            screenCanvasBitmap = bmp
-            screenCanvas = Canvas(bmp)
-            binding.ivScreenshot.setImageBitmap(bmp)
-        }
-    }
-
     private fun handleControlMessage(json: JSONObject) {
-        when (json.optString("type")) {
+        val type = json.optString("type")
+        when (type) {
             MessageType.CURSOR -> {
                 val x = json.optInt("x", 0)
                 val y = json.optInt("y", 0)
                 val visible = json.optBoolean("visible", true)
 
                 runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
                     if (!visible) {
                         binding.ivCursor.visibility = View.GONE
                     } else {
                         binding.ivCursor.visibility = View.VISIBLE
 
-                        // Map desktop coordinates to Android screen coordinates
-                        val ivWidth = binding.ivScreenshot.width
-                        val ivHeight = binding.ivScreenshot.height
-                        val bmpW = screenCanvasBitmap?.width ?: displayWidthPx
-                        val bmpH = screenCanvasBitmap?.height ?: displayHeightPx
+                        val ivW = binding.ivScreenshot.width
+                        val ivH = binding.ivScreenshot.height
+                        val dispW = if (displayWidthPx > 0) displayWidthPx else 1920
+                        val dispH = if (displayHeightPx > 0) displayHeightPx else 1080
 
-                        if (bmpW > 0 && bmpH > 0 && ivWidth > 0 && ivHeight > 0) {
-                            val scale = minOf(ivWidth.toFloat() / bmpW, ivHeight.toFloat() / bmpH)
-                            val leftOffset = (ivWidth - bmpW * scale) / 2f
-                            val topOffset = (ivHeight - bmpH * scale) / 2f
-
-                            binding.ivCursor.x = leftOffset + (x * scale)
-                            binding.ivCursor.y = topOffset + (y * scale)
+                        if (dispW > 0 && dispH > 0 && ivW > 0 && ivH > 0) {
+                            val scale = minOf(ivW.toFloat() / dispW, ivH.toFloat() / dispH)
+                            val left = (ivW - dispW * scale) / 2f
+                            val top = (ivH - dispH * scale) / 2f
+                            binding.ivCursor.x = left + (x * scale)
+                            binding.ivCursor.y = top + (y * scale)
                         }
                     }
                 }
             }
-            MessageType.TILE_PATCH -> {
-                val tileX = json.optInt("tileX", 0)
-                val tileY = json.optInt("tileY", 0)
-                val base64 = json.optString("imageBase64")
-
-                if (base64.isNotEmpty()) {
-                    try {
-                        val imageBytes = Base64.decode(base64, Base64.DEFAULT)
-                        val tileBmp = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-
-                        if (tileBmp != null) {
-                            synchronized(this) {
-                                screenCanvas?.drawBitmap(tileBmp, tileX.toFloat(), tileY.toFloat(), canvasPaint)
-                            }
-                            tileBmp.recycle()
-
-                            runOnUiThread {
-                                binding.ivScreenshot.invalidate()
-                            }
-                        }
-                    } catch (_: Exception) {}
-                }
-            }
-            MessageType.SCREENSHOT -> {
+            MessageType.SCREENSHOT, MessageType.TILE_PATCH -> {
                 val base64 = json.optString("imageBase64")
                 val frameW = json.optInt("width", displayWidthPx)
                 val frameH = json.optInt("height", displayHeightPx)
@@ -172,18 +131,16 @@ class RenderActivity : AppCompatActivity() {
                 if (base64.isNotEmpty()) {
                     try {
                         val imageBytes = Base64.decode(base64, Base64.DEFAULT)
-                        val fullBmp = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                        val bmp = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
 
-                        if (fullBmp != null) {
-                            synchronized(this) {
-                                initCanvas(fullBmp.width, fullBmp.height)
-                                screenCanvas?.drawBitmap(fullBmp, 0f, 0f, canvasPaint)
-                            }
-                            fullBmp.recycle()
+                        if (bmp != null) {
+                            displayWidthPx = bmp.width
+                            displayHeightPx = bmp.height
 
                             runOnUiThread {
-                                binding.tvHudResolution.text = "${frameW}x${frameH}"
-                                binding.ivScreenshot.invalidate()
+                                if (isFinishing || isDestroyed) return@runOnUiThread
+                                binding.ivScreenshot.setImageBitmap(bmp)
+                                binding.tvHudResolution.text = "${bmp.width}x${bmp.height}"
                             }
                         }
                     } catch (_: Exception) {}
@@ -191,7 +148,9 @@ class RenderActivity : AppCompatActivity() {
             }
             MessageType.STOP_STREAM, MessageType.BYE -> {
                 runOnUiThread {
-                    finish()
+                    if (!isFinishing && !isDestroyed) {
+                        finish()
+                    }
                 }
             }
         }
@@ -199,9 +158,6 @@ class RenderActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         activeTransport?.onMediaFrameReceived = null
-        screenCanvasBitmap?.recycle()
-        screenCanvasBitmap = null
-        screenCanvas = null
         super.onDestroy()
     }
 

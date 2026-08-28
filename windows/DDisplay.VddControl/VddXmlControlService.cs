@@ -5,9 +5,8 @@ using DDisplay.VddControl.Models;
 namespace DDisplay.VddControl;
 
 /// <summary>
-/// Controls the Virtual Display Driver (VDD) by modifying vdd_settings.xml
-/// using MikeTheTech's schema (<vdd_settings><monitors><count>1</count></monitors>...).
-/// Includes debounce and state verification to avoid redundant driver initialization prompts.
+/// Controls the Virtual Display Driver (VDD) by modifying vdd_settings.xml.
+/// Silent monitor count zeroing on disconnect prevents unnecessary UAC prompts.
 /// </summary>
 public sealed class VddXmlControlService : IVirtualDisplayService
 {
@@ -16,6 +15,7 @@ public sealed class VddXmlControlService : IVirtualDisplayService
 
     private readonly string _settingsFilePath;
     private readonly SemaphoreSlim _serviceLock = new(1, 1);
+    private bool _hasAttemptedElevation = false;
 
     public VddXmlControlService(string settingsFilePath = DefaultSettingsPath)
     {
@@ -49,7 +49,11 @@ public sealed class VddXmlControlService : IVirtualDisplayService
             }
             catch
             {
-                await RunDriverScriptAsync("enable-display.bat", cancellationToken);
+                if (!_hasAttemptedElevation)
+                {
+                    _hasAttemptedElevation = true;
+                    await RunDriverScriptAsync("enable-display.bat", cancellationToken);
+                }
             }
         }
         finally
@@ -63,20 +67,14 @@ public sealed class VddXmlControlService : IVirtualDisplayService
         await _serviceLock.WaitAsync(cancellationToken);
         try
         {
+            // Zeroing count in vdd_settings.xml tells the driver to remove all virtual monitors silently with 0 UAC prompts!
             SetMonitorCount(0);
 
             try
             {
-                var output = await RunPnputilAsync($"/disable-device \"{VddDeviceInstanceId}\"", cancellationToken);
-                if (output.Contains("Failed to disable") || output.Contains("Access is denied"))
-                {
-                    throw new InvalidOperationException($"pnputil failed: {output}");
-                }
+                await RunPnputilAsync($"/disable-device \"{VddDeviceInstanceId}\"", cancellationToken);
             }
-            catch
-            {
-                await RunDriverScriptAsync("disable-display.bat", cancellationToken);
-            }
+            catch { }
         }
         finally
         {
@@ -133,7 +131,7 @@ public sealed class VddXmlControlService : IVirtualDisplayService
         return ParseMonitors(doc);
     }
 
-    public async Task<int> AddOrUpdateMonitorAsync(MonitorEntry entry, CancellationToken cancellationToken = default)
+    public Task<int> AddOrUpdateMonitorAsync(MonitorEntry entry, CancellationToken cancellationToken = default)
     {
         EnsureSettingsFileExists();
 
@@ -145,7 +143,6 @@ public sealed class VddXmlControlService : IVirtualDisplayService
             doc.Root?.Add(resolutionsEl);
         }
 
-        // Add both landscape and portrait variants so Windows settings can freely switch orientation
         int w = entry.WidthPx;
         int h = entry.HeightPx;
         int maxDim = Math.Max(w, h);
@@ -157,8 +154,7 @@ public sealed class VddXmlControlService : IVirtualDisplayService
         SetMonitorCount(1);
         doc.Save(_settingsFilePath);
 
-        await ReloadDriverAsync(cancellationToken);
-        return 0;
+        return Task.FromResult(0);
     }
 
     private static void AddResolutionIfMissing(XElement resolutionsEl, int width, int height, int refreshRate)
@@ -176,10 +172,10 @@ public sealed class VddXmlControlService : IVirtualDisplayService
         }
     }
 
-    public async Task RemoveMonitorAsync(int index, CancellationToken cancellationToken = default)
+    public Task RemoveMonitorAsync(int index, CancellationToken cancellationToken = default)
     {
         SetMonitorCount(0);
-        await ReloadDriverAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public async Task ReloadDriverAsync(CancellationToken cancellationToken = default)
@@ -193,18 +189,7 @@ public sealed class VddXmlControlService : IVirtualDisplayService
                 throw new InvalidOperationException($"pnputil failed: {output}");
             }
         }
-        catch
-        {
-            // If restart fails and count > 0, run enable script
-            if (GetMonitorCount() > 0)
-            {
-                await RunDriverScriptAsync("enable-display.bat", cancellationToken);
-            }
-            else
-            {
-                await RunDriverScriptAsync("disable-display.bat", cancellationToken);
-            }
-        }
+        catch { }
         finally
         {
             _serviceLock.Release();
@@ -244,7 +229,6 @@ public sealed class VddXmlControlService : IVirtualDisplayService
                     new XElement("g_refresh_rate", 90),
                     new XElement("g_refresh_rate", 120)),
                 new XElement("resolutions",
-                    // Standard Landscape & Portrait modes for dynamic Windows orientation switching
                     new XElement("resolution", new XElement("width", 1920), new XElement("height", 1080), new XElement("refresh_rate", 60)),
                     new XElement("resolution", new XElement("width", 1080), new XElement("height", 1920), new XElement("refresh_rate", 60)),
                     new XElement("resolution", new XElement("width", 2400), new XElement("height", 1080), new XElement("refresh_rate", 60)),
