@@ -222,36 +222,57 @@ public sealed class MediaFoundationEncoder : IEncoder
         return false;
     }
 
-    private static void ConvertBgraToNv12(byte[] bgra, byte[] nv12, int width, int height)
+    private static unsafe void ConvertBgraToNv12(byte[] bgra, byte[] nv12, int width, int height)
     {
         int ySize = width * height;
         int uvOffset = ySize;
 
-        for (int j = 0; j < height; j++)
+        fixed (byte* pBgra = bgra, pNv12 = nv12)
         {
-            int rowStart = j * width * 4;
-            int yRowStart = j * width;
-            int uvRowStart = uvOffset + (j >> 1) * width;
-
-            for (int i = 0; i < width; i++)
+            for (int j = 0; j < height; j += 2)
             {
-                int px = rowStart + (i << 2);
-                int b = bgra[px];
-                int g = bgra[px + 1];
-                int r = bgra[px + 2];
+                byte* pSrcRow0 = pBgra + (j * width * 4);
+                byte* pSrcRow1 = pBgra + ((j + 1) * width * 4);
+                byte* pDstYRow0 = pNv12 + (j * width);
+                byte* pDstYRow1 = pNv12 + ((j + 1) * width);
+                byte* pDstUvRow = pNv12 + uvOffset + ((j >> 1) * width);
 
-                // Y
-                int y = (66 * r + 129 * g + 25 * b + 128) >> 8;
-                nv12[yRowStart + i] = (byte)Math.Clamp(y + 16, 0, 255);
-
-                // UV (subsampled 2x2)
-                if ((j & 1) == 0 && (i & 1) == 0)
+                for (int i = 0; i < width; i += 2)
                 {
-                    int u = (-38 * r - 74 * g + 112 * b + 128) >> 8;
-                    int v = (112 * r - 94 * g - 18 * b + 128) >> 8;
-                    int uvIdx = uvRowStart + i;
-                    nv12[uvIdx] = (byte)Math.Clamp(u + 128, 0, 255);
-                    nv12[uvIdx + 1] = (byte)Math.Clamp(v + 128, 0, 255);
+                    int i4 = i * 4;
+                    int i4Next = (i + 1) * 4;
+
+                    // Row 0, Col 0
+                    byte b00 = pSrcRow0[i4];
+                    byte g00 = pSrcRow0[i4 + 1];
+                    byte r00 = pSrcRow0[i4 + 2];
+                    pDstYRow0[i] = (byte)(((66 * r00 + 129 * g00 + 25 * b00 + 128) >> 8) + 16);
+
+                    // Row 0, Col 1
+                    byte b10 = pSrcRow0[i4Next];
+                    byte g10 = pSrcRow0[i4Next + 1];
+                    byte r10 = pSrcRow0[i4Next + 2];
+                    pDstYRow0[i + 1] = (byte)(((66 * r10 + 129 * g10 + 25 * b10 + 128) >> 8) + 16);
+
+                    // Row 1, Col 0
+                    byte b01 = pSrcRow1[i4];
+                    byte g01 = pSrcRow1[i4 + 1];
+                    byte r01 = pSrcRow1[i4 + 2];
+                    pDstYRow1[i] = (byte)(((66 * r01 + 129 * g01 + 25 * b01 + 128) >> 8) + 16);
+
+                    // Row 1, Col 1
+                    byte b11 = pSrcRow1[i4Next];
+                    byte g11 = pSrcRow1[i4Next + 1];
+                    byte r11 = pSrcRow1[i4Next + 2];
+                    pDstYRow1[i + 1] = (byte)(((66 * r11 + 129 * g11 + 25 * b11 + 128) >> 8) + 16);
+
+                    // UV 2x2 average
+                    int avgR = (r00 + r10 + r01 + r11) >> 2;
+                    int avgG = (g00 + g10 + g01 + g11) >> 2;
+                    int avgB = (b00 + b10 + b01 + b11) >> 2;
+
+                    pDstUvRow[i] = (byte)(((-38 * avgR - 74 * avgG + 112 * avgB + 128) >> 8) + 128);
+                    pDstUvRow[i + 1] = (byte)(((112 * avgR - 94 * avgG - 18 * avgB + 128) >> 8) + 128);
                 }
             }
         }

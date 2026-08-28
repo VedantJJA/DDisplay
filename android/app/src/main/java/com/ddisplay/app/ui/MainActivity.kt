@@ -46,6 +46,7 @@ class MainActivity : AppCompatActivity() {
 
     private var serverDisplayWidth = 1920
     private var serverDisplayHeight = 1080
+    private var isStreamingActive = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -114,8 +115,9 @@ class MainActivity : AppCompatActivity() {
         testPacketsAcked = 0
         testBytesTransferred = 0
         lastRttMs = 0
+        isStreamingActive = false
 
-        updateStatus("Connected via $label. Exchanging test data...", connected = true)
+        updateStatus("Connected via $label (Ready to stream)", connected = true)
         binding.tvTransportBadge.text = label
         binding.tvTransportBadge.visibility = View.VISIBLE
         binding.tvPacketLoss.visibility = View.VISIBLE
@@ -150,10 +152,10 @@ class MainActivity : AppCompatActivity() {
     private fun startTestDataLoop(transport: SocketTransport) {
         testDataJob?.cancel()
         testDataJob = scope.launch(Dispatchers.IO) {
-            val testPayload = "DDisplay-Test-Payload-1024-Bytes".repeat(32) // ~1KB
+            val testPayload = "DDisplay-Test-Payload-1024-Bytes".repeat(32)
             val payloadBytes = testPayload.toByteArray()
 
-            while (isActive && transport.isConnected) {
+            while (isActive && transport.isConnected && !isStreamingActive) {
                 testPacketsSent++
                 testBytesTransferred += payloadBytes.size
 
@@ -166,8 +168,10 @@ class MainActivity : AppCompatActivity() {
                     val lostCount = maxOf(0L, testPacketsSent - testPacketsAcked - 1)
                     val lossPct = if (testPacketsSent > 0) (lostCount * 100.0) / testPacketsSent else 0.0
 
-                    updateStatus("Connected - Packets: $testPacketsSent | Data: ${"%.1f".format(kb)} KB | RTT: ${lastRttMs}ms", connected = true)
-                    binding.tvPacketLoss.text = "Packet Loss: $lostCount (${"%.1f".format(lossPct)}%)"
+                    if (!isStreamingActive) {
+                        updateStatus("Connected - Packets: $testPacketsSent | Data: ${"%.1f".format(kb)} KB | RTT: ${lastRttMs}ms", connected = true)
+                        binding.tvPacketLoss.text = "Packet Loss: $lostCount (${"%.1f".format(lossPct)}%)"
+                    }
                 }
 
                 delay(1000L)
@@ -184,6 +188,18 @@ class MainActivity : AppCompatActivity() {
 
                 scope.launch {
                     updateStatus("Handshake OK (${ack.virtualDisplayWidthPx}x${ack.virtualDisplayHeightPx}) - Ready to stream", connected = true)
+                }
+            }
+            MessageType.START_STREAM -> {
+                scope.launch {
+                    startStreamingSession()
+                }
+            }
+            MessageType.STOP_STREAM -> {
+                scope.launch {
+                    isStreamingActive = false
+                    updateStatus("Streaming stopped (Connected)", connected = true)
+                    startTestDataLoop(transport)
                 }
             }
             MessageType.TEST_DATA -> {
@@ -217,6 +233,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startStreamingSession() {
         val transport = activeTransport ?: return
+        isStreamingActive = true
         testDataJob?.cancel()
 
         val displayMetrics = resources.displayMetrics
@@ -238,6 +255,7 @@ class MainActivity : AppCompatActivity() {
         testDataJob?.cancel()
         testDataJob = null
         activeTransport = null
+        isStreamingActive = false
 
         scope.launch {
             updateStatus("Disconnected: $reason (Ready to connect)", connected = false)
@@ -260,6 +278,18 @@ class MainActivity : AppCompatActivity() {
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_PERMISSION_CODE)
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        isStreamingActive = false
+        val transport = activeTransport
+        if (transport != null && transport.isConnected) {
+            transport.onControlMessageReceived = { json ->
+                handleControlMessage(json, transport)
+            }
+            startTestDataLoop(transport)
         }
     }
 

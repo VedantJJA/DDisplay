@@ -74,4 +74,19 @@ public partial class MainWindow : Window
         });
     }
 
+    private async void StartStream_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm != null)
+        {
+            await Vm.StartStreamingAsync();
+        }
+    }
+
+    private async void StopStream_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm != null)
+        {
+            await Vm.StopStreamingAsync();
+        }
+    }
 }

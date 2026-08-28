@@ -75,11 +75,11 @@ public sealed class SessionCoordinator : IAsyncDisposable
                 var startMsg = JsonSerializer.Deserialize<StartStreamMessage>(e.RawJson, ControlChannelJson.Options);
                 int w = startMsg?.ScreenWidthPx ?? ActiveWidth;
                 int h = startMsg?.ScreenHeightPx ?? ActiveHeight;
-                await StartLiveStreamAsync(w, h);
+                await StartLiveStreamAsync(w, h, isRemoteInitiated: true);
             }
             else if (e.MessageType == "stop-stream")
             {
-                await StopLiveStreamAsync();
+                await StopLiveStreamAsync(isRemoteInitiated: true);
             }
             else if (e.MessageType == "test-data")
             {
@@ -118,7 +118,7 @@ public sealed class SessionCoordinator : IAsyncDisposable
             }
             else if (e.MessageType == "bye")
             {
-                await StopLiveStreamAsync();
+                await StopLiveStreamAsync(isRemoteInitiated: true);
             }
         }
         catch (Exception)
@@ -155,7 +155,7 @@ public sealed class SessionCoordinator : IAsyncDisposable
         try
         {
             var bounds = GdiScreenshotCapture.GetVirtualOrSecondaryDisplayBounds();
-            var jpegBytes = GdiScreenshotCapture.CaptureDesktopJpeg(quality: 75, preferVirtualDisplay: true);
+            var jpegBytes = GdiScreenshotCapture.CaptureDesktopJpeg(quality: 70, preferVirtualDisplay: true);
             var base64 = Convert.ToBase64String(jpegBytes);
             var msg = new ScreenshotMessage
             {
@@ -169,7 +169,7 @@ public sealed class SessionCoordinator : IAsyncDisposable
         catch { }
     }
 
-    public async Task StartLiveStreamAsync(int width, int height)
+    public async Task StartLiveStreamAsync(int width, int height, bool isRemoteInitiated = false)
     {
         int targetWidth = Math.Max(width, height);
         int targetHeight = Math.Min(width, height);
@@ -203,23 +203,38 @@ public sealed class SessionCoordinator : IAsyncDisposable
         _isStreaming = true;
         StreamingStateChanged?.Invoke(this, true);
 
-        // Allow Windows display manager to attach the second monitor
-        await Task.Delay(1000, token);
+        // If initiated on PC, notify Android to launch player
+        if (!isRemoteInitiated)
+        {
+            try
+            {
+                var startCmd = new StartStreamMessage
+                {
+                    ScreenWidthPx = targetWidth,
+                    ScreenHeightPx = targetHeight,
+                };
+                await _transport.SendControlMessageAsync(startCmd, token);
+            }
+            catch { }
+        }
 
-        // 2. Send initial screenshot of the extended display
+        // Allow Windows display manager to attach the second monitor
+        await Task.Delay(800, token);
+
+        // 2. Send initial screenshot
         await SendScreenshotAsync();
 
-        // 3. Start live screenshot feed loop (continuous screenshot streaming at ~5-10 FPS)
+        // 3. Fast smooth live screenshot loop (~30 FPS, ~33ms interval)
         _screenshotLoopTask = Task.Run(async () =>
         {
             while (!token.IsCancellationRequested && _isStreaming)
             {
                 await SendScreenshotAsync();
-                await Task.Delay(250, token);
+                await Task.Delay(33, token);
             }
         }, token);
 
-        // 4. Also start DXGI hardware capture in background
+        // 4. Also start 60 FPS hardware DXGI capture & MediaCodec NAL stream
         try
         {
             await _captureEngine.InitializeAsync(string.Empty, token);
@@ -253,7 +268,7 @@ public sealed class SessionCoordinator : IAsyncDisposable
         catch { }
     }
 
-    public async Task StopLiveStreamAsync()
+    public async Task StopLiveStreamAsync(bool isRemoteInitiated = false)
     {
         _isStreaming = false;
         StreamingStateChanged?.Invoke(this, false);
@@ -261,6 +276,15 @@ public sealed class SessionCoordinator : IAsyncDisposable
         _sessionCts?.Cancel();
         _captureEngine.FrameAvailable -= OnFrameCaptured;
         _encoder.FrameEncoded -= OnFrameEncoded;
+
+        if (!isRemoteInitiated)
+        {
+            try
+            {
+                await _transport.SendControlMessageAsync(new StopStreamMessage());
+            }
+            catch { }
+        }
 
         try { await _captureEngine.StopCaptureAsync(); } catch { }
         try { await _encoder.DisposeAsync(); } catch { }
@@ -270,12 +294,12 @@ public sealed class SessionCoordinator : IAsyncDisposable
 
     private async void OnTransportDisconnected(object? sender, TransportDisconnectedEventArgs e)
     {
-        await StopLiveStreamAsync();
+        await StopLiveStreamAsync(isRemoteInitiated: true);
     }
 
     public async ValueTask DisposeAsync()
     {
-        await StopLiveStreamAsync();
+        await StopLiveStreamAsync(isRemoteInitiated: true);
         _transport.ControlMessageReceived -= OnControlMessageReceived;
         _transport.Disconnected -= OnTransportDisconnected;
         _sessionCts?.Dispose();

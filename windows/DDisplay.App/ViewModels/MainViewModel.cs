@@ -105,6 +105,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _transportManager.StartMonitoring();
     }
 
+    public async Task StartStreamingAsync()
+    {
+        if (_sessionCoordinator != null && IsConnected)
+        {
+            StatusText = $"Starting stream on {TransportLabel}...";
+            int w = _sessionCoordinator.ActiveWidth > 0 ? _sessionCoordinator.ActiveWidth : 1920;
+            int h = _sessionCoordinator.ActiveHeight > 0 ? _sessionCoordinator.ActiveHeight : 1080;
+            await _sessionCoordinator.StartLiveStreamAsync(w, h);
+            IsStreaming = true;
+            IsDisplayEnabled = true;
+        }
+    }
+
+    public async Task StopStreamingAsync()
+    {
+        if (_sessionCoordinator != null)
+        {
+            await _sessionCoordinator.StopLiveStreamAsync();
+            IsStreaming = false;
+            IsDisplayEnabled = false;
+            StatusText = $"Connected ({TransportLabel}) - Streaming stopped (Standby).";
+        }
+    }
+
     public async Task ToggleDisplayAsync()
     {
         if (IsDisplayEnabled)

@@ -58,7 +58,7 @@ class RenderActivity : AppCompatActivity() {
             }
         }
 
-        // Handle incoming screenshot control messages
+        // Handle incoming screenshot and control messages
         transport.onControlMessageReceived = { json ->
             handleControlMessage(json)
         }
@@ -132,6 +132,10 @@ class RenderActivity : AppCompatActivity() {
                         }
                     }
                 } catch (_: Exception) {}
+            }
+        } else if (type == MessageType.STOP_STREAM || type == MessageType.BYE) {
+            runOnUiThread {
+                finish()
             }
         }
     }
