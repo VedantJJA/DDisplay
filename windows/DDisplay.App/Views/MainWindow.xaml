@@ -5,7 +5,10 @@
         Title="DDisplay"
         Width="780" Height="540"
         MinWidth="640" MinHeight="440"
-        Style="{StaticResource AppWindow}"
+        Background="{StaticResource BackgroundBrush}"
+        Foreground="{StaticResource TextPrimaryBrush}"
+        FontFamily="{StaticResource FontMain}"
+        FontSize="13"
         WindowStartupLocation="CenterScreen"
         Closing="Window_Closing">
 

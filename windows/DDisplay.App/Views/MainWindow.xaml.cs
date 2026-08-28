@@ -1,6 +1,7 @@
 using System.Windows;
 using DDisplay.App.ViewModels;
 using DDisplay.Core.Transport;
+using DDisplay.VddControl;
 
 namespace DDisplay.App.Views;
 
@@ -11,6 +12,20 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        if (DataContext is null)
+        {
+            DataContext = new MainViewModel(
+                new VddXmlControlService(),
+                new TransportManager());
+        }
+
+        Loaded += (_, _) =>
+        {
+            Activate();
+            Topmost = true;
+            Topmost = false;
+            Focus();
+        };
     }
 
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)

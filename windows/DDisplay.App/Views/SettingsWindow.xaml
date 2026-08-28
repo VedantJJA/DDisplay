@@ -5,7 +5,10 @@
         Title="Settings"
         Width="480" Height="560"
         ResizeMode="NoResize"
-        Style="{StaticResource AppWindow}"
+        Background="{StaticResource BackgroundBrush}"
+        Foreground="{StaticResource TextPrimaryBrush}"
+        FontFamily="{StaticResource FontMain}"
+        FontSize="13"
         WindowStartupLocation="CenterOwner">
 
     <Window.DataContext>

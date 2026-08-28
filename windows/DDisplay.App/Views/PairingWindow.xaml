@@ -4,7 +4,10 @@
         Title="Pair a Device"
         Width="420" Height="520"
         ResizeMode="NoResize"
-        Style="{StaticResource AppWindow}"
+        Background="{StaticResource BackgroundBrush}"
+        Foreground="{StaticResource TextPrimaryBrush}"
+        FontFamily="{StaticResource FontMain}"
+        FontSize="13"
         WindowStartupLocation="CenterOwner">
 
     <Grid Margin="28">
