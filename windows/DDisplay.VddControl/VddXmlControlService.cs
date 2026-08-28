@@ -6,7 +6,7 @@ namespace DDisplay.VddControl;
 
 /// <summary>
 /// Controls the Virtual Display Driver (VDD) by modifying vdd_settings.xml
-/// and dynamically enabling/disabling the display with zero UAC popups when elevated.
+/// using MikeTheTech's schema (<vdd_settings><monitors><count>1</count></monitors>...).
 /// </summary>
 public sealed class VddXmlControlService : IVirtualDisplayService
 {
@@ -22,10 +22,12 @@ public sealed class VddXmlControlService : IVirtualDisplayService
 
     public bool IsDriverInstalled => VddInstallChecker.IsFullyInstalled();
 
-    public bool IsDisplayEnabled => VddInstallChecker.IsDriverDevicePresent();
+    public bool IsDisplayEnabled => VddInstallChecker.IsDriverDevicePresent() && GetMonitorCount() > 0;
 
     public async Task EnableDisplayAsync(CancellationToken cancellationToken = default)
     {
+        SetMonitorCount(1);
+
         try
         {
             var output = await RunPnputilAsync($"/enable-device \"{VddDeviceInstanceId}\"", cancellationToken);
@@ -38,10 +40,14 @@ public sealed class VddXmlControlService : IVirtualDisplayService
         {
             await RunDriverScriptAsync("enable-display.bat", cancellationToken);
         }
+
+        await ReloadDriverAsync(cancellationToken);
     }
 
     public async Task DisableDisplayAsync(CancellationToken cancellationToken = default)
     {
+        SetMonitorCount(0);
+
         try
         {
             var output = await RunPnputilAsync($"/disable-device \"{VddDeviceInstanceId}\"", cancellationToken);
@@ -54,6 +60,48 @@ public sealed class VddXmlControlService : IVirtualDisplayService
         {
             await RunDriverScriptAsync("disable-display.bat", cancellationToken);
         }
+
+        await ReloadDriverAsync(cancellationToken);
+    }
+
+    public int GetMonitorCount()
+    {
+        if (!File.Exists(_settingsFilePath)) return 0;
+        try
+        {
+            var doc = XDocument.Load(_settingsFilePath);
+            return (int?)doc.Root?.Element("monitors")?.Element("count") ?? 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    public void SetMonitorCount(int count)
+    {
+        EnsureSettingsFileExists();
+        try
+        {
+            var doc = XDocument.Load(_settingsFilePath);
+            var monitorsEl = doc.Root?.Element("monitors");
+            if (monitorsEl is null)
+            {
+                monitorsEl = new XElement("monitors");
+                doc.Root?.AddFirst(monitorsEl);
+            }
+            var countEl = monitorsEl.Element("count");
+            if (countEl is null)
+            {
+                monitorsEl.Add(new XElement("count", count));
+            }
+            else
+            {
+                countEl.Value = count.ToString();
+            }
+            doc.Save(_settingsFilePath);
+        }
+        catch { }
     }
 
     public IReadOnlyList<MonitorEntry> GetMonitors()
@@ -67,38 +115,39 @@ public sealed class VddXmlControlService : IVirtualDisplayService
 
     public async Task<int> AddOrUpdateMonitorAsync(MonitorEntry entry, CancellationToken cancellationToken = default)
     {
-        var doc = File.Exists(_settingsFilePath)
-            ? XDocument.Load(_settingsFilePath)
-            : CreateEmptyDocument();
+        EnsureSettingsFileExists();
 
-        var monitors = ParseMonitors(doc).ToList();
-
-        var existingIndex = monitors.FindIndex(m => m.Index == entry.Index);
-        if (existingIndex >= 0)
-            monitors[existingIndex] = entry;
-        else
+        var doc = XDocument.Load(_settingsFilePath);
+        var resolutionsEl = doc.Root?.Element("resolutions");
+        if (resolutionsEl is null)
         {
-            entry.Index = monitors.Count > 0 ? monitors.Max(m => m.Index) + 1 : 0;
-            monitors.Add(entry);
+            resolutionsEl = new XElement("resolutions");
+            doc.Root?.Add(resolutionsEl);
         }
 
-        WriteMonitors(doc, monitors);
+        // Check if resolution already exists
+        var existing = resolutionsEl.Elements("resolution").FirstOrDefault(r =>
+            (int?)r.Element("width") == entry.WidthPx &&
+            (int?)r.Element("height") == entry.HeightPx);
+
+        if (existing is null)
+        {
+            resolutionsEl.AddFirst(new XElement("resolution",
+                new XElement("width", entry.WidthPx),
+                new XElement("height", entry.HeightPx),
+                new XElement("refresh_rate", entry.RefreshRateHz > 0 ? entry.RefreshRateHz : 60)));
+        }
+
+        SetMonitorCount(1);
         doc.Save(_settingsFilePath);
 
         await ReloadDriverAsync(cancellationToken);
-        return entry.Index;
+        return 0;
     }
 
     public async Task RemoveMonitorAsync(int index, CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(_settingsFilePath)) return;
-
-        var doc = XDocument.Load(_settingsFilePath);
-        var monitors = ParseMonitors(doc).Where(m => m.Index != index).ToList();
-
-        WriteMonitors(doc, monitors);
-        doc.Save(_settingsFilePath);
-
+        SetMonitorCount(0);
         await ReloadDriverAsync(cancellationToken);
     }
 
@@ -118,7 +167,80 @@ public sealed class VddXmlControlService : IVirtualDisplayService
         }
     }
 
-    // -- Private helpers --
+    private void EnsureSettingsFileExists()
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(_settingsFilePath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            if (!File.Exists(_settingsFilePath))
+            {
+                var defaultDoc = CreateDefaultDocument();
+                defaultDoc.Save(_settingsFilePath);
+            }
+        }
+        catch { }
+    }
+
+    private static XDocument CreateDefaultDocument()
+    {
+        return new XDocument(
+            new XDeclaration("1.0", "utf-8", null),
+            new XElement("vdd_settings",
+                new XElement("monitors",
+                    new XElement("count", 1)),
+                new XElement("gpu",
+                    new XElement("friendlyname", "default")),
+                new XElement("global",
+                    new XElement("g_refresh_rate", 60),
+                    new XElement("g_refresh_rate", 90),
+                    new XElement("g_refresh_rate", 120)),
+                new XElement("resolutions",
+                    new XElement("resolution",
+                        new XElement("width", 1920),
+                        new XElement("height", 1080),
+                        new XElement("refresh_rate", 60)),
+                    new XElement("resolution",
+                        new XElement("width", 2400),
+                        new XElement("height", 1080),
+                        new XElement("refresh_rate", 60)),
+                    new XElement("resolution",
+                        new XElement("width", 2560),
+                        new XElement("height", 1440),
+                        new XElement("refresh_rate", 60))),
+                new XElement("logging",
+                    new XElement("SendLogsThroughPipe", false),
+                    new XElement("logging", false),
+                    new XElement("debuglogging", false))));
+    }
+
+    private static List<MonitorEntry> ParseMonitors(XDocument doc)
+    {
+        var result = new List<MonitorEntry>();
+        var resolutionsEl = doc.Root?.Element("resolutions");
+        if (resolutionsEl is null) return result;
+
+        int idx = 0;
+        foreach (var el in resolutionsEl.Elements("resolution"))
+        {
+            result.Add(new MonitorEntry
+            {
+                Index = idx,
+                WidthPx = (int?)el.Element("width") ?? 1920,
+                HeightPx = (int?)el.Element("height") ?? 1080,
+                RefreshRateHz = (int?)el.Element("refresh_rate") ?? 60,
+                FriendlyName = "Virtual Display",
+                Enabled = true,
+            });
+            idx++;
+        }
+
+        return result;
+    }
 
     private static async Task RunDriverScriptAsync(string scriptName, CancellationToken cancellationToken)
     {
@@ -142,66 +264,6 @@ public sealed class VddXmlControlService : IVirtualDisplayService
                 proc?.WaitForExit(10000);
             }
         }, cancellationToken);
-    }
-
-    private static XDocument CreateEmptyDocument()
-    {
-        return new XDocument(
-            new XDeclaration("1.0", "utf-8", null),
-            new XElement("VirtualDisplayDriverSettings",
-                new XElement("Monitors")));
-    }
-
-    private static List<MonitorEntry> ParseMonitors(XDocument doc)
-    {
-        var result = new List<MonitorEntry>();
-        var monitorsEl = doc.Root?.Element("Monitors");
-        if (monitorsEl is null) return result;
-
-        int idx = 0;
-        foreach (var el in monitorsEl.Elements("Monitor"))
-        {
-            result.Add(new MonitorEntry
-            {
-                Index = (int?)el.Attribute("index") ?? idx,
-                WidthPx = (int?)el.Element("Width") ?? 1920,
-                HeightPx = (int?)el.Element("Height") ?? 1080,
-                RefreshRateHz = (int?)el.Element("RefreshRate") ?? 60,
-                FriendlyName = (string?)el.Element("FriendlyName"),
-                Enabled = ((string?)el.Attribute("enabled") ?? "true")
-                    .Equals("true", StringComparison.OrdinalIgnoreCase),
-            });
-            idx++;
-        }
-
-        return result;
-    }
-
-    private static void WriteMonitors(XDocument doc, IEnumerable<MonitorEntry> monitors)
-    {
-        var monitorsEl = doc.Root?.Element("Monitors");
-        if (monitorsEl is null)
-        {
-            monitorsEl = new XElement("Monitors");
-            doc.Root?.Add(monitorsEl);
-        }
-
-        monitorsEl.RemoveAll();
-
-        foreach (var m in monitors)
-        {
-            var el = new XElement("Monitor",
-                new XAttribute("index", m.Index),
-                new XAttribute("enabled", m.Enabled ? "true" : "false"),
-                new XElement("Width", m.WidthPx),
-                new XElement("Height", m.HeightPx),
-                new XElement("RefreshRate", m.RefreshRateHz));
-
-            if (!string.IsNullOrEmpty(m.FriendlyName))
-                el.Add(new XElement("FriendlyName", m.FriendlyName));
-
-            monitorsEl.Add(el);
-        }
     }
 
     private static async Task<string> RunPnputilAsync(string args, CancellationToken cancellationToken)

@@ -5,12 +5,56 @@ if (-not $isAdmin) {
     exit
 }
 
-Write-Host "Enabling Virtual Display Driver..." -ForegroundColor Cyan
+Write-Host "Configuring and Enabling Virtual Display Driver..." -ForegroundColor Cyan
 
-# 1. Try pnputil direct enable
+# 1. Ensure C:\VirtualDisplayDriver directory and vdd_settings.xml exist
+$vddDir = "C:\VirtualDisplayDriver"
+if (-not (Test-Path $vddDir)) {
+    New-Item -ItemType Directory -Path $vddDir -Force | Out-Null
+}
+
+$vddSettings = "C:\VirtualDisplayDriver\vdd_settings.xml"
+$repoSettings = Join-Path $PSScriptRoot "Virtual-Display-Driver\Virtual Display Driver (HDR)\vdd_settings.xml"
+
+if (Test-Path $repoSettings) {
+    Copy-Item -Path $repoSettings -Destination $vddSettings -Force
+} elseif (-not (Test-Path $vddSettings)) {
+    $xmlContent = @"
+<?xml version="1.0" encoding="utf-8"?>
+<vdd_settings>
+    <monitors>
+        <count>1</count>
+    </monitors>
+    <gpu>
+        <friendlyname>default</friendlyname>
+    </gpu>
+    <global>
+        <g_refresh_rate>60</g_refresh_rate>
+        <g_refresh_rate>90</g_refresh_rate>
+        <g_refresh_rate>120</g_refresh_rate>
+    </global>
+    <resolutions>
+        <resolution>
+            <width>1920</width>
+            <height>1080</height>
+            <refresh_rate>60</refresh_rate>
+        </resolution>
+        <resolution>
+            <width>2400</width>
+            <height>1080</height>
+            <refresh_rate>60</refresh_rate>
+        </resolution>
+    </resolutions>
+</vdd_settings>
+"@
+    [System.IO.File]::WriteAllText($vddSettings, $xmlContent)
+}
+
+# 2. Try pnputil direct enable and restart
 & pnputil.exe /enable-device "ROOT\DISPLAY\0000"
+& pnputil.exe /restart-device "ROOT\DISPLAY\0000"
 
-# 2. Try PnpDevice enable
+# 3. Try PnpDevice enable
 $devices = Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { 
     $_.FriendlyName -like "*Virtual Display*" -or 
     $_.FriendlyName -like "*IddSample*" -or 
