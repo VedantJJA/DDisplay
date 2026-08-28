@@ -52,7 +52,7 @@ public abstract class TcpLanTransport : ITransport
 
     public virtual async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
-        await DisconnectAsync(CancellationToken.None);
+        StopListenerAndClient();
 
         _listener = new TcpListener(GetListenEndPoint());
         _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
@@ -88,13 +88,20 @@ public abstract class TcpLanTransport : ITransport
         Connected?.Invoke(this, EventArgs.Empty);
     }
 
-    public virtual Task DisconnectAsync(CancellationToken cancellationToken = default)
+    private void StopListenerAndClient()
     {
         _isListening = false;
         _readLoopCts?.Cancel();
         try { _listener?.Stop(); } catch { }
         _listener = null;
+        try { _client?.Close(); } catch { }
+        try { _stream?.Dispose(); } catch { }
+        _client = null;
+        _stream = null;
+    }
 
+    public virtual Task DisconnectAsync(CancellationToken cancellationToken = default)
+    {
         if (_stream is not null)
         {
             try
@@ -111,10 +118,7 @@ public abstract class TcpLanTransport : ITransport
             catch { /* best-effort */ }
         }
 
-        try { _client?.Close(); } catch { }
-        try { _stream?.Dispose(); } catch { }
-        _client = null;
-        _stream = null;
+        StopListenerAndClient();
         return Task.CompletedTask;
     }
 

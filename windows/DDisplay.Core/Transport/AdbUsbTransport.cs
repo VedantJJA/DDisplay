@@ -61,13 +61,12 @@ public sealed class AdbUsbTransport : TcpLanTransport
             }
             else
             {
-                // Fallback: execute generic adb reverse
                 await RunAdbAsync($"reverse tcp:{_port} tcp:{_port}", cancellationToken);
             }
         }
         catch
         {
-            // If adb reverse fails temporarily, continue starting the TCP listener so Wi-Fi/local connects still work
+            // If adb reverse fails temporarily, continue starting the TCP listener so connections still work
         }
 
         await base.ConnectAsync(cancellationToken);
@@ -76,14 +75,6 @@ public sealed class AdbUsbTransport : TcpLanTransport
     public override async Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
         await base.DisconnectAsync(cancellationToken);
-        if (_deviceSerial is not null)
-        {
-            try
-            {
-                await RunAdbAsync($"-s {_deviceSerial} reverse --remove tcp:{_port}", cancellationToken);
-            }
-            catch { /* best-effort cleanup */ }
-        }
     }
 
     /// <summary>
