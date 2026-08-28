@@ -154,13 +154,14 @@ public sealed class SessionCoordinator : IAsyncDisposable
     {
         try
         {
-            var jpegBytes = GdiScreenshotCapture.CaptureDesktopJpeg(quality: 75, captureAllScreens: true);
+            var bounds = GdiScreenshotCapture.GetVirtualOrSecondaryDisplayBounds();
+            var jpegBytes = GdiScreenshotCapture.CaptureDesktopJpeg(quality: 75, preferVirtualDisplay: true);
             var base64 = Convert.ToBase64String(jpegBytes);
             var msg = new ScreenshotMessage
             {
                 ImageBase64 = base64,
-                Width = ActiveWidth > 0 ? ActiveWidth : 1920,
-                Height = ActiveHeight > 0 ? ActiveHeight : 1080,
+                Width = bounds.Width > 0 ? bounds.Width : 1920,
+                Height = bounds.Height > 0 ? bounds.Height : 1080,
                 TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             };
             await _transport.SendControlMessageAsync(msg);
@@ -202,7 +203,10 @@ public sealed class SessionCoordinator : IAsyncDisposable
         _isStreaming = true;
         StreamingStateChanged?.Invoke(this, true);
 
-        // 2. Send initial screenshot immediately so Android never has a black screen
+        // Allow Windows display manager to attach the second monitor
+        await Task.Delay(1000, token);
+
+        // 2. Send initial screenshot of the extended display
         await SendScreenshotAsync();
 
         // 3. Start live screenshot feed loop (continuous screenshot streaming at ~5-10 FPS)
