@@ -5,7 +5,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import com.ddisplay.app.R
 import com.ddisplay.app.ui.MainActivity
@@ -13,9 +15,6 @@ import com.ddisplay.app.ui.MainActivity
 /**
  * Foreground service that keeps the streaming session alive while the user
  * is not looking at the RenderActivity (e.g., phone screen turns off temporarily).
- *
- * Must be started before any sustained network I/O to satisfy Android's
- * background process restrictions.
  */
 class StreamingForegroundService : Service() {
 
@@ -23,6 +22,20 @@ class StreamingForegroundService : Service() {
         const val CHANNEL_ID = "ddisplay_streaming"
         const val NOTIFICATION_ID = 1001
         const val ACTION_STOP = "com.ddisplay.app.service.ACTION_STOP"
+
+        fun startService(context: Context) {
+            val intent = Intent(context, StreamingForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
+        fun stopService(context: Context) {
+            val intent = Intent(context, StreamingForegroundService::class.java)
+            context.stopService(intent)
+        }
     }
 
     override fun onCreate() {

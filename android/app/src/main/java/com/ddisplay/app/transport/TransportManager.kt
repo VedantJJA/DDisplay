@@ -39,6 +39,7 @@ class TransportManager(
 
     var onConnected: ((SocketTransport, String) -> Unit)? = null
     var onDisconnected: ((String) -> Unit)? = null
+    var onConnectionFailed: ((String) -> Unit)? = null
     var onStatusChanged: ((String) -> Unit)? = null
 
     fun startPolling() {
@@ -62,6 +63,17 @@ class TransportManager(
         pollJob?.cancel()
         pollJob = null
         stopNsdBrowse()
+    }
+
+    fun connectManual(host: String) {
+        scope.launch {
+            val success = tryConnect(host, "Wi-Fi (manual)")
+            if (!success) {
+                withContext(Dispatchers.Main) {
+                    onConnectionFailed?.invoke("Could not connect to $host:$port")
+                }
+            }
+        }
     }
 
     fun disconnect() {
