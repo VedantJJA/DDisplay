@@ -76,10 +76,17 @@ public sealed class SessionCoordinator : IAsyncDisposable
             }
             else if (e.MessageType == "start-stream")
             {
-                var startMsg = JsonSerializer.Deserialize<StartStreamMessage>(e.RawJson, ControlChannelJson.Options);
-                int w = startMsg?.ScreenWidthPx ?? ActiveWidth;
-                int h = startMsg?.ScreenHeightPx ?? ActiveHeight;
-                await StartLiveStreamAsync(w, h, isRemoteInitiated: true);
+                if (!_isStreaming)
+                {
+                    var startMsg = JsonSerializer.Deserialize<StartStreamMessage>(e.RawJson, ControlChannelJson.Options);
+                    int w = startMsg?.ScreenWidthPx ?? ActiveWidth;
+                    int h = startMsg?.ScreenHeightPx ?? ActiveHeight;
+                    await StartLiveStreamAsync(w, h, isRemoteInitiated: true);
+                }
+                else
+                {
+                    await SendScreenshotAsync();
+                }
             }
             else if (e.MessageType == "stop-stream")
             {
@@ -173,6 +180,12 @@ public sealed class SessionCoordinator : IAsyncDisposable
 
     public async Task StartLiveStreamAsync(int width, int height, bool isRemoteInitiated = false)
     {
+        if (_isStreaming)
+        {
+            await SendScreenshotAsync();
+            return;
+        }
+
         int targetWidth = Math.Max(width, height);
         int targetHeight = Math.Min(width, height);
 
@@ -230,7 +243,7 @@ public sealed class SessionCoordinator : IAsyncDisposable
         }
         catch { }
 
-        // 4. Background screenshot stream loop for low-overhead continuous frame refresh
+        // 4. Background screenshot stream loop for continuous frame refresh
         _screenshotLoopTask = Task.Run(async () =>
         {
             while (!token.IsCancellationRequested && _isStreaming)
@@ -319,7 +332,6 @@ public sealed class SessionCoordinator : IAsyncDisposable
                 {
                     while (_isStreaming)
                     {
-                        // Atomically take the freshest pending frame (dropping any stale intermediate ones)
                         var frameToSend = Interlocked.Exchange(ref _pendingMediaFrame, null);
                         if (frameToSend == null) break;
 
@@ -330,7 +342,6 @@ public sealed class SessionCoordinator : IAsyncDisposable
                 {
                     Interlocked.Exchange(ref _isSendingMedia, 0);
 
-                    // If a newer frame arrived right at loop exit, trigger send once more
                     if (_pendingMediaFrame != null && Interlocked.CompareExchange(ref _isSendingMedia, 1, 0) == 0)
                     {
                         _ = Task.Run(async () =>
@@ -354,6 +365,8 @@ public sealed class SessionCoordinator : IAsyncDisposable
 
     public async Task StopLiveStreamAsync(bool isRemoteInitiated = false)
     {
+        if (!_isStreaming) return;
+
         _isStreaming = false;
         StreamingStateChanged?.Invoke(this, false);
 

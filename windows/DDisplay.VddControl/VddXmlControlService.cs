@@ -52,7 +52,7 @@ public sealed class VddXmlControlService : IVirtualDisplayService
                 if (!_hasAttemptedElevation)
                 {
                     _hasAttemptedElevation = true;
-                    await RunDriverScriptAsync("enable-display.bat", cancellationToken);
+                    await RunDriverScriptAsync("enable-display.ps1", cancellationToken);
                 }
             }
         }
@@ -279,14 +279,15 @@ public sealed class VddXmlControlService : IVirtualDisplayService
             {
                 var psi = new ProcessStartInfo
                 {
-                    FileName = "cmd.exe",
-                    Arguments = $"/c \"{fullScriptPath}\"",
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{fullScriptPath}\"",
                     UseShellExecute = true,
                     Verb = "runas",
                     WindowStyle = ProcessWindowStyle.Hidden,
+                    CreateNoWindow = true,
                 };
                 using var proc = Process.Start(psi);
-                proc?.WaitForExit(10000);
+                proc?.WaitForExit(5000);
             }
         }, cancellationToken);
     }

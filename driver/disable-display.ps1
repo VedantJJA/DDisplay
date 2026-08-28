@@ -1,30 +1,17 @@
 # Disconnect / Disable Virtual Display Driver
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) {
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs -Wait
-    exit
+$ErrorActionPreference = "SilentlyContinue"
+
+# 1. Zero monitor count in vdd_settings.xml (silently removes monitors)
+$vddSettings = "C:\VirtualDisplayDriver\vdd_settings.xml"
+if (Test-Path $vddSettings) {
+    try {
+        [xml]$xml = Get-Content $vddSettings
+        if ($xml.vdd_settings.monitors) {
+            $xml.vdd_settings.monitors.count = "0"
+            $xml.Save($vddSettings)
+        }
+    } catch {}
 }
 
-Write-Host "Disabling Virtual Display Driver..." -ForegroundColor Cyan
-
-# 1. Try pnputil direct disable
+# 2. Disable PnP device
 & pnputil.exe /disable-device "ROOT\DISPLAY\0000"
-
-# 2. Try PnpDevice disable
-$devices = Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { 
-    $_.FriendlyName -like "*Virtual Display*" -or 
-    $_.FriendlyName -like "*IddSample*" -or 
-    $_.InstanceId -like "*DISPLAY\0000*"
-}
-
-if ($devices) {
-    foreach ($dev in $devices) {
-        Write-Host "Disabling: $($dev.FriendlyName) ($($dev.InstanceId))" -ForegroundColor Yellow
-        $dev | Disable-PnpDevice -Confirm:$false -ErrorAction SilentlyContinue
-    }
-    Write-Host "Virtual Display Driver has been disabled/disconnected." -ForegroundColor Green
-} else {
-    Write-Host "No Virtual Display Driver device found." -ForegroundColor Red
-}
-
-Start-Sleep -Seconds 1

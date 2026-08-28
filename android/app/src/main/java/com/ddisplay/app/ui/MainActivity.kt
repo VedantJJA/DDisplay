@@ -192,7 +192,7 @@ class MainActivity : AppCompatActivity() {
             }
             MessageType.START_STREAM -> {
                 scope.launch {
-                    startStreamingSession()
+                    startStreamingSession(notifyServer = false)
                 }
             }
             MessageType.STOP_STREAM -> {
@@ -231,16 +231,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun startStreamingSession() {
+    private fun startStreamingSession(notifyServer: Boolean = true) {
         val transport = activeTransport ?: return
         isStreamingActive = true
         testDataJob?.cancel()
 
         val displayMetrics = resources.displayMetrics
-        scope.launch(Dispatchers.IO) {
-            transport.sendControlMessage(
-                ControlMessages.startStream(displayMetrics.widthPixels, displayMetrics.heightPixels)
-            )
+        if (notifyServer) {
+            scope.launch(Dispatchers.IO) {
+                transport.sendControlMessage(
+                    ControlMessages.startStream(displayMetrics.widthPixels, displayMetrics.heightPixels)
+                )
+            }
         }
 
         RenderActivity.activeTransport = transport
