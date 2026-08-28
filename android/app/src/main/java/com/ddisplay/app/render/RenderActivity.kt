@@ -19,8 +19,8 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 /**
- * Full-screen activity for rendering the Windows desktop display.
- * Renders live desktop frames, tracks cursor overlays, and captures touch input.
+ * Full-screen activity for rendering the Windows extended desktop display.
+ * Renders live stream frames with embedded hardware cursor and captures touch input.
  */
 class RenderActivity : AppCompatActivity() {
 
@@ -55,7 +55,6 @@ class RenderActivity : AppCompatActivity() {
             }
         }
 
-        // Handle incoming screenshot, cursor, and control messages
         transport.onControlMessageReceived = { json ->
             try {
                 handleControlMessage(json)
@@ -96,34 +95,7 @@ class RenderActivity : AppCompatActivity() {
     private fun handleControlMessage(json: JSONObject) {
         val type = json.optString("type")
         when (type) {
-            MessageType.CURSOR -> {
-                val x = json.optInt("x", 0)
-                val y = json.optInt("y", 0)
-                val visible = json.optBoolean("visible", true)
-
-                runOnUiThread {
-                    if (isFinishing || isDestroyed) return@runOnUiThread
-                    if (!visible) {
-                        binding.ivCursor.visibility = View.GONE
-                    } else {
-                        binding.ivCursor.visibility = View.VISIBLE
-
-                        val ivW = binding.ivScreenshot.width
-                        val ivH = binding.ivScreenshot.height
-                        val dispW = if (displayWidthPx > 0) displayWidthPx else 1920
-                        val dispH = if (displayHeightPx > 0) displayHeightPx else 1080
-
-                        if (dispW > 0 && dispH > 0 && ivW > 0 && ivH > 0) {
-                            val scale = minOf(ivW.toFloat() / dispW, ivH.toFloat() / dispH)
-                            val left = (ivW - dispW * scale) / 2f
-                            val top = (ivH - dispH * scale) / 2f
-                            binding.ivCursor.x = left + (x * scale)
-                            binding.ivCursor.y = top + (y * scale)
-                        }
-                    }
-                }
-            }
-            MessageType.SCREENSHOT, MessageType.TILE_PATCH -> {
+            MessageType.SCREENSHOT -> {
                 val base64 = json.optString("imageBase64")
                 val frameW = json.optInt("width", displayWidthPx)
                 val frameH = json.optInt("height", displayHeightPx)

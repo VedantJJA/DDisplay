@@ -8,8 +8,8 @@ using DDisplay.VddControl;
 namespace DDisplay.Core;
 
 /// <summary>
-/// Coordinates session communications, handshake, change-detection streaming,
-/// cursor tracking, tile patching, and freshest-wins bounded media queueing.
+/// Coordinates session communications, handshake, live desktop streaming,
+/// and low-latency frame dispatch.
 /// </summary>
 public sealed class SessionCoordinator : IAsyncDisposable
 {
@@ -26,10 +26,7 @@ public sealed class SessionCoordinator : IAsyncDisposable
     private long _expectedSeq = 1;
     private long _packetLossCount;
     private Task? _screenshotLoopTask;
-
-    // Single-slot freshest-wins pending frame holder
-    private EncodedFrameEventArgs? _pendingMediaFrame;
-    private int _isSendingMedia = 0;
+    private int _isSendingFrame = 0;
 
     public bool IsStreaming => _isStreaming;
     public int ActiveWidth { get; private set; }
@@ -161,6 +158,9 @@ public sealed class SessionCoordinator : IAsyncDisposable
 
     public async Task SendScreenshotAsync()
     {
+        // Dropping frame if previous send is still writing to socket (freshest-wins semantics)
+        if (Interlocked.CompareExchange(ref _isSendingFrame, 1, 0) != 0) return;
+
         try
         {
             var bounds = GdiScreenshotCapture.GetVirtualOrSecondaryDisplayBounds();
@@ -176,6 +176,10 @@ public sealed class SessionCoordinator : IAsyncDisposable
             await _transport.SendControlMessageAsync(msg);
         }
         catch { }
+        finally
+        {
+            Interlocked.Exchange(ref _isSendingFrame, 0);
+        }
     }
 
     public async Task StartLiveStreamAsync(int width, int height, bool isRemoteInitiated = false)
@@ -225,142 +229,20 @@ public sealed class SessionCoordinator : IAsyncDisposable
         }
 
         // Allow Windows display manager to attach the second monitor
-        await Task.Delay(600, token);
+        await Task.Delay(500, token);
 
         // 2. Send initial full frame
         await SendScreenshotAsync();
 
-        // 3. Start Change-Detection Capture Loop
-        try
-        {
-            await _captureEngine.InitializeAsync(string.Empty, token);
-            await _encoder.InitializeAsync(targetWidth, targetHeight, 8000, 60, "video/avc", token);
-
-            _captureEngine.FrameAvailable += OnFrameCaptured;
-            _encoder.FrameEncoded += OnFrameEncoded;
-
-            _ = Task.Run(() => _captureEngine.StartCaptureAsync(token), token);
-        }
-        catch { }
-
-        // 4. Background screenshot stream loop for continuous frame refresh
+        // 3. Dedicated fast smooth streaming loop (~30 FPS, ~33ms interval)
         _screenshotLoopTask = Task.Run(async () =>
         {
             while (!token.IsCancellationRequested && _isStreaming)
             {
                 await SendScreenshotAsync();
-                await Task.Delay(33, token);
+                await Task.Delay(30, token);
             }
         }, token);
-    }
-
-    private async void OnFrameCaptured(object? sender, CaptureFrameEventArgs e)
-    {
-        if (!_isStreaming) return;
-
-        try
-        {
-            // Path A: CURSOR_ONLY update
-            if (e.Classification == FrameClassification.CursorOnly && e.Cursor != null)
-            {
-                var cursorMsg = new CursorUpdateMessage
-                {
-                    X = e.Cursor.X,
-                    Y = e.Cursor.Y,
-                    Visible = e.Cursor.Visible,
-                    ShapeBase64 = e.Cursor.ShapeBase64,
-                    ShapeWidth = e.Cursor.ShapeWidth,
-                    ShapeHeight = e.Cursor.ShapeHeight,
-                    HotspotX = e.Cursor.HotspotX,
-                    HotspotY = e.Cursor.HotspotY,
-                };
-                await _transport.SendControlMessageAsync(cursorMsg);
-                return;
-            }
-
-            // Path B: PATCH update (send small dirty tiles)
-            if (e.Classification == FrameClassification.Patch && e.Patches != null && e.Patches.Count > 0)
-            {
-                foreach (var patch in e.Patches)
-                {
-                    var patchMsg = new TilePatchMessage
-                    {
-                        TileX = patch.X,
-                        TileY = patch.Y,
-                        TileWidth = patch.Width,
-                        TileHeight = patch.Height,
-                        ImageBase64 = patch.ImageBase64,
-                        TimestampMs = e.TimestampMs,
-                    };
-                    await _transport.SendControlMessageAsync(patchMsg);
-                }
-
-                if (e.Cursor != null)
-                {
-                    await _transport.SendControlMessageAsync(new CursorUpdateMessage
-                    {
-                        X = e.Cursor.X,
-                        Y = e.Cursor.Y,
-                        Visible = e.Cursor.Visible,
-                    });
-                }
-                return;
-            }
-
-            // Path C: FULL frame video encode
-            if (e.Classification == FrameClassification.Full && e.BgraData.Length > 0)
-            {
-                await _encoder.EncodeFrameAsync(e.BgraData, e.TimestampMs);
-            }
-        }
-        catch { }
-    }
-
-    private void OnFrameEncoded(object? sender, EncodedFrameEventArgs e)
-    {
-        if (!_isStreaming || e.NalData.Length == 0) return;
-
-        // Freshest-wins: store the latest frame in the single-slot buffer
-        Interlocked.Exchange(ref _pendingMediaFrame, e);
-
-        // Trigger asynchronous send loop if not already in progress
-        if (Interlocked.CompareExchange(ref _isSendingMedia, 1, 0) == 0)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    while (_isStreaming)
-                    {
-                        var frameToSend = Interlocked.Exchange(ref _pendingMediaFrame, null);
-                        if (frameToSend == null) break;
-
-                        await _transport.SendMediaFrameAsync(frameToSend.NalData, frameToSend.IsKeyframe, frameToSend.TimestampMs);
-                    }
-                }
-                finally
-                {
-                    Interlocked.Exchange(ref _isSendingMedia, 0);
-
-                    if (_pendingMediaFrame != null && Interlocked.CompareExchange(ref _isSendingMedia, 1, 0) == 0)
-                    {
-                        _ = Task.Run(async () =>
-                        {
-                            var lastFrame = Interlocked.Exchange(ref _pendingMediaFrame, null);
-                            if (lastFrame != null && _isStreaming)
-                            {
-                                try
-                                {
-                                    await _transport.SendMediaFrameAsync(lastFrame.NalData, lastFrame.IsKeyframe, lastFrame.TimestampMs);
-                                }
-                                catch { }
-                            }
-                            Interlocked.Exchange(ref _isSendingMedia, 0);
-                        });
-                    }
-                }
-            });
-        }
     }
 
     public async Task StopLiveStreamAsync(bool isRemoteInitiated = false)
@@ -371,8 +253,6 @@ public sealed class SessionCoordinator : IAsyncDisposable
         StreamingStateChanged?.Invoke(this, false);
 
         _sessionCts?.Cancel();
-        _captureEngine.FrameAvailable -= OnFrameCaptured;
-        _encoder.FrameEncoded -= OnFrameEncoded;
 
         if (!isRemoteInitiated)
         {
@@ -383,9 +263,6 @@ public sealed class SessionCoordinator : IAsyncDisposable
             catch { }
         }
 
-        try { await _captureEngine.StopCaptureAsync(); } catch { }
-        try { await _encoder.DisposeAsync(); } catch { }
-        try { await _captureEngine.DisposeAsync(); } catch { }
         try { await _vddService.DisableDisplayAsync(); } catch { }
     }
 
