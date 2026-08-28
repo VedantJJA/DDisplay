@@ -13,29 +13,61 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-        _mainVm = new MainViewModel(
-            new VddXmlControlService(),
-            new TransportManager());
-
-        // Build tray icon.
-        _trayIcon = new System.Windows.Forms.NotifyIcon
+        DispatcherUnhandledException += (s, args) =>
         {
-            Text = "DDisplay",
-            Visible = true,
-            ContextMenuStrip = BuildTrayMenu(),
+            System.Windows.MessageBox.Show(
+                $"An unhandled error occurred: {args.Exception.Message}\n\n{args.Exception.StackTrace}",
+                "DDisplay Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            args.Handled = true;
         };
 
-        // Load the icon from embedded resource.
-        var iconStream = GetResourceStream(new Uri("Assets/app.ico", UriKind.Relative))?.Stream;
-        if (iconStream is not null)
-            _trayIcon.Icon = new System.Drawing.Icon(iconStream);
+        try
+        {
+            _mainVm = new MainViewModel(
+                new VddXmlControlService(),
+                new TransportManager());
 
-        _trayIcon.DoubleClick += (_, _) => ShowMainWindow();
+            // Build tray icon with safe fallback
+            _trayIcon = new System.Windows.Forms.NotifyIcon
+            {
+                Text = "DDisplay",
+                Visible = true,
+                ContextMenuStrip = BuildTrayMenu(),
+            };
 
-        // Show the main window on first launch.
-        ShowMainWindow();
+            try
+            {
+                var iconStream = GetResourceStream(new Uri("pack://application:,,,/Assets/app.ico", UriKind.Absolute))?.Stream;
+                if (iconStream is not null)
+                {
+                    _trayIcon.Icon = new System.Drawing.Icon(iconStream);
+                }
+                else
+                {
+                    _trayIcon.Icon = System.Drawing.SystemIcons.Application;
+                }
+            }
+            catch
+            {
+                _trayIcon.Icon = System.Drawing.SystemIcons.Application;
+            }
+
+            _trayIcon.DoubleClick += (_, _) => ShowMainWindow();
+
+            // Show the main window on startup
+            ShowMainWindow();
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                $"Failed to start DDisplay: {ex.Message}\n\n{ex.StackTrace}",
+                "DDisplay Startup Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private void ShowMainWindow()
@@ -46,6 +78,10 @@ public partial class App : System.Windows.Application
         }
 
         MainWindow.Show();
+        if (MainWindow.WindowState == WindowState.Minimized)
+        {
+            MainWindow.WindowState = WindowState.Normal;
+        }
         MainWindow.Activate();
     }
 
