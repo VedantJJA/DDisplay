@@ -180,25 +180,16 @@ public sealed class SessionCoordinator : IAsyncDisposable
         ActiveWidth = targetWidth;
         ActiveHeight = targetHeight;
 
-        // 1. Configure VDD monitor
-        try
-        {
-            await _vddService.AddOrUpdateMonitorAsync(new MonitorEntry
-            {
-                Index = 0,
-                WidthPx = targetWidth,
-                HeightPx = targetHeight,
-                RefreshRateHz = 60,
-                FriendlyName = "DDisplay Virtual Monitor",
-                Enabled = true,
-            });
-            await _vddService.EnableDisplayAsync();
-        }
-        catch { }
-
         _sessionCts?.Cancel();
         _sessionCts = new CancellationTokenSource();
         var token = _sessionCts.Token;
+
+        // 1. Enable VDD display cleanly in a single call
+        try
+        {
+            await _vddService.EnableDisplayAsync(token);
+        }
+        catch { }
 
         _isStreaming = true;
         StreamingStateChanged?.Invoke(this, true);
@@ -219,7 +210,7 @@ public sealed class SessionCoordinator : IAsyncDisposable
         }
 
         // Allow Windows display manager to attach the second monitor
-        await Task.Delay(800, token);
+        await Task.Delay(600, token);
 
         // 2. Send initial screenshot
         await SendScreenshotAsync();
@@ -233,39 +224,6 @@ public sealed class SessionCoordinator : IAsyncDisposable
                 await Task.Delay(33, token);
             }
         }, token);
-
-        // 4. Also start 60 FPS hardware DXGI capture & MediaCodec NAL stream
-        try
-        {
-            await _captureEngine.InitializeAsync(string.Empty, token);
-            await _encoder.InitializeAsync(targetWidth, targetHeight, 8000, 60, "video/avc", token);
-
-            _captureEngine.FrameAvailable += OnFrameCaptured;
-            _encoder.FrameEncoded += OnFrameEncoded;
-
-            _ = Task.Run(() => _captureEngine.StartCaptureAsync(token), token);
-        }
-        catch { }
-    }
-
-    private async void OnFrameCaptured(object? sender, CaptureFrameEventArgs e)
-    {
-        if (!_isStreaming) return;
-        try
-        {
-            await _encoder.EncodeFrameAsync(e.BgraData, e.TimestampMs);
-        }
-        catch { }
-    }
-
-    private async void OnFrameEncoded(object? sender, EncodedFrameEventArgs e)
-    {
-        if (!_isStreaming || e.NalData.Length == 0) return;
-        try
-        {
-            await _transport.SendMediaFrameAsync(e.NalData, e.IsKeyframe, e.TimestampMs);
-        }
-        catch { }
     }
 
     public async Task StopLiveStreamAsync(bool isRemoteInitiated = false)
@@ -274,8 +232,6 @@ public sealed class SessionCoordinator : IAsyncDisposable
         StreamingStateChanged?.Invoke(this, false);
 
         _sessionCts?.Cancel();
-        _captureEngine.FrameAvailable -= OnFrameCaptured;
-        _encoder.FrameEncoded -= OnFrameEncoded;
 
         if (!isRemoteInitiated)
         {
@@ -286,9 +242,6 @@ public sealed class SessionCoordinator : IAsyncDisposable
             catch { }
         }
 
-        try { await _captureEngine.StopCaptureAsync(); } catch { }
-        try { await _encoder.DisposeAsync(); } catch { }
-        try { await _captureEngine.DisposeAsync(); } catch { }
         try { await _vddService.DisableDisplayAsync(); } catch { }
     }
 

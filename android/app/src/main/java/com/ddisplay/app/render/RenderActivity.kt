@@ -4,14 +4,12 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Base64
-import android.view.SurfaceHolder
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import com.ddisplay.app.databinding.ActivityRenderBinding
-import com.ddisplay.app.decode.MediaCodecDecoder
 import com.ddisplay.app.input.TouchCapture
 import com.ddisplay.app.protocol.ControlMessages
 import com.ddisplay.app.protocol.MessageType
@@ -23,12 +21,11 @@ import org.json.JSONObject
 
 /**
  * Full-screen activity for rendering the Windows desktop display.
- * Supports both high-fidelity JPEG screenshot frames and MediaCodec H.264 stream.
+ * Supports dynamic orientation adaptation, touch capture, and HUD controls.
  */
 class RenderActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityRenderBinding
-    private var decoder: MediaCodecDecoder? = null
     private var touchCapture: TouchCapture? = null
     private val scope = CoroutineScope(Dispatchers.Main)
     private var currentBitmap: Bitmap? = null
@@ -63,41 +60,14 @@ class RenderActivity : AppCompatActivity() {
             handleControlMessage(json)
         }
 
-        // Request initial screenshot immediately
-        scope.launch(Dispatchers.IO) {
-            transport.sendControlMessage(ControlMessages.requestScreenshot())
+        val tc = TouchCapture(transport)
+        touchCapture = tc
+        binding.ivScreenshot.setOnTouchListener(tc)
+
+        binding.ivScreenshot.setOnClickListener {
+            val hud = binding.hudOverlay
+            hud.visibility = if (hud.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }
-
-        binding.surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(holder: SurfaceHolder) {
-                val dec = MediaCodecDecoder(codecMime, holder.surface)
-                dec.configure(displayWidthPx, displayHeightPx)
-                dec.start()
-                decoder = dec
-
-                transport.onMediaFrameReceived = { nalData, isKeyframe, pts ->
-                    dec.submitFrame(nalData, isKeyframe, pts)
-                }
-
-                val tc = TouchCapture(transport)
-                touchCapture = tc
-                binding.ivScreenshot.setOnTouchListener(tc)
-
-                binding.ivScreenshot.setOnClickListener {
-                    val hud = binding.hudOverlay
-                    hud.visibility = if (hud.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-                }
-            }
-
-            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
-
-            override fun surfaceDestroyed(holder: SurfaceHolder) {
-                transport.onMediaFrameReceived = null
-                decoder?.stop()
-                decoder?.release()
-                decoder = null
-            }
-        })
 
         binding.hudOverlay.visibility = View.GONE
         binding.tvHudResolution.text = "${displayWidthPx}x${displayHeightPx}"
@@ -114,12 +84,20 @@ class RenderActivity : AppCompatActivity() {
             }
             finish()
         }
+
+        // Request initial screenshot immediately
+        scope.launch(Dispatchers.IO) {
+            transport.sendControlMessage(ControlMessages.requestScreenshot())
+        }
     }
 
     private fun handleControlMessage(json: JSONObject) {
         val type = json.optString("type")
         if (type == MessageType.SCREENSHOT) {
             val base64 = json.optString("imageBase64")
+            val frameW = json.optInt("width", displayWidthPx)
+            val frameH = json.optInt("height", displayHeightPx)
+
             if (base64.isNotEmpty()) {
                 try {
                     val imageBytes = Base64.decode(base64, Base64.DEFAULT)
@@ -127,6 +105,7 @@ class RenderActivity : AppCompatActivity() {
                     if (bmp != null) {
                         runOnUiThread {
                             binding.ivScreenshot.setImageBitmap(bmp)
+                            binding.tvHudResolution.text = "${bmp.width}x${bmp.height}"
                             currentBitmap?.recycle()
                             currentBitmap = bmp
                         }
@@ -142,8 +121,6 @@ class RenderActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         activeTransport?.onMediaFrameReceived = null
-        decoder?.release()
-        decoder = null
         currentBitmap?.recycle()
         currentBitmap = null
         super.onDestroy()

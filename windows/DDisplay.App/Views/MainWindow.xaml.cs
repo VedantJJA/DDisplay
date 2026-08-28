@@ -29,11 +29,13 @@ public partial class MainWindow : Window
         };
     }
 
-    private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+    private async void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
-        // Minimize to tray instead of closing.
-        e.Cancel = true;
-        Hide();
+        if (Vm != null)
+        {
+            await Vm.ShutdownAsync();
+        }
+        System.Windows.Application.Current.Shutdown();
     }
 
     private void Settings_Click(object sender, RoutedEventArgs e)
