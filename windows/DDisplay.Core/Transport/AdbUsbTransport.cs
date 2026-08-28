@@ -6,12 +6,6 @@ namespace DDisplay.Core.Transport;
 /// <summary>
 /// ADB-USB transport. Sets up an `adb reverse` tunnel so the Android device can connect
 /// to the Windows TCP server on localhost.
-///
-/// Flow:
-///   1. ConnectAsync detects the connected ADB device.
-///   2. Runs `adb -s <serial> reverse tcp:PORT tcp:PORT` to forward device localhost to host.
-///   3. Starts the TcpLanTransport listener on 127.0.0.1:PORT.
-///   4. Android app connects its Socket to 127.0.0.1:PORT -- traffic goes over the USB cable.
 /// </summary>
 public sealed class AdbUsbTransport : TcpLanTransport
 {
@@ -50,12 +44,32 @@ public sealed class AdbUsbTransport : TcpLanTransport
     public override string DisplayName => "USB (ADB)";
 
     protected override IPEndPoint GetListenEndPoint() =>
-        new(IPAddress.Loopback, _port);
+        new(IPAddress.Any, _port);
 
     public override async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
-        _deviceSerial = await DetectDeviceAsync(cancellationToken);
-        await SetupReverseAsync(_deviceSerial, cancellationToken);
+        try
+        {
+            var devices = await ListDevicesAsync(cancellationToken);
+            if (devices.Count > 0)
+            {
+                _deviceSerial = devices[0];
+                foreach (var dev in devices)
+                {
+                    await SetupReverseAsync(dev, cancellationToken);
+                }
+            }
+            else
+            {
+                // Fallback: execute generic adb reverse
+                await RunAdbAsync($"reverse tcp:{_port} tcp:{_port}", cancellationToken);
+            }
+        }
+        catch
+        {
+            // If adb reverse fails temporarily, continue starting the TCP listener so Wi-Fi/local connects still work
+        }
+
         await base.ConnectAsync(cancellationToken);
     }
 
@@ -90,25 +104,13 @@ public sealed class AdbUsbTransport : TcpLanTransport
         return devices;
     }
 
-    private async Task<string> DetectDeviceAsync(CancellationToken cancellationToken)
-    {
-        var devices = await ListDevicesAsync(cancellationToken);
-
-        if (devices.Count == 0)
-            throw new TransportException("No authorized ADB device found. Connect via USB and authorize debugging.");
-
-        if (devices.Count > 1)
-        {
-            // TODO: surface device selection to the UI when multiple devices are attached.
-            // For now, use the first device and log a warning.
-        }
-
-        return devices[0];
-    }
-
     private async Task SetupReverseAsync(string serial, CancellationToken cancellationToken)
     {
-        await RunAdbAsync($"-s {serial} reverse tcp:{_port} tcp:{_port}", cancellationToken);
+        try
+        {
+            await RunAdbAsync($"-s {serial} reverse tcp:{_port} tcp:{_port}", cancellationToken);
+        }
+        catch { }
     }
 
     private async Task<string> RunAdbAsync(string args, CancellationToken cancellationToken)

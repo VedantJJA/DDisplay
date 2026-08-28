@@ -17,9 +17,8 @@ private const val USB_ADB_HOST = "127.0.0.1"
 private const val NSD_SERVICE_TYPE = "_ddisplay._tcp."
 
 /**
- * Continuous polling client for Android.
- * Polls at 1.5s in foreground and 5s in background mode.
- * Automatically recovers and reconnects when disconnected.
+ * Transport manager for Android.
+ * Supports manual connect via USB or Wi-Fi as well as background polling.
  */
 class TransportManager(
     private val context: Context,
@@ -34,13 +33,24 @@ class TransportManager(
     var isBackgroundMode: Boolean = false
         set(value) {
             field = value
-            Log.d(TAG, "Background mode updated: $value (polling interval: ${if (value) 5000 else 1500}ms)")
+            Log.d(TAG, "Background mode updated: $value")
         }
 
     var onConnected: ((SocketTransport, String) -> Unit)? = null
     var onDisconnected: ((String) -> Unit)? = null
     var onConnectionFailed: ((String) -> Unit)? = null
     var onStatusChanged: ((String) -> Unit)? = null
+
+    fun connectUsb() {
+        scope.launch {
+            val success = tryConnect(USB_ADB_HOST, "USB")
+            if (!success) {
+                withContext(Dispatchers.Main) {
+                    onConnectionFailed?.invoke("Could not connect to PC at $USB_ADB_HOST:$port. Ensure PC app is running.")
+                }
+            }
+        }
+    }
 
     fun startPolling() {
         stopPolling()
@@ -53,7 +63,7 @@ class TransportManager(
                     }
                 }
 
-                val interval = if (isBackgroundMode) 5000L else 1500L
+                val interval = if (isBackgroundMode) 5000L else 2000L
                 delay(interval)
             }
         }
@@ -77,6 +87,7 @@ class TransportManager(
     }
 
     fun disconnect() {
+        stopPolling()
         transport?.disconnect()
         transport = null
     }

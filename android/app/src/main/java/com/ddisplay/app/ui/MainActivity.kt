@@ -60,9 +60,13 @@ class MainActivity : AppCompatActivity() {
             onTransportDisconnected(reason)
         }
 
+        transportManager.onConnectionFailed = { reason ->
+            updateStatus(reason, connected = false)
+        }
+
         binding.btnConnectUsb.setOnClickListener {
-            updateStatus("Polling for PC connection...", connected = false)
-            transportManager.startPolling()
+            updateStatus("Connecting via USB (127.0.0.1:7878)...", connected = false)
+            transportManager.connectUsb()
         }
 
         binding.btnConnectWifi.setOnClickListener {
@@ -73,7 +77,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        // Start continuous background polling
+        // Start background polling
         transportManager.startPolling()
     }
 
@@ -195,7 +199,7 @@ class MainActivity : AppCompatActivity() {
         activeTransport = null
 
         scope.launch {
-            updateStatus("Disconnected: $reason (Listening / Polling...)", connected = false)
+            updateStatus("Disconnected: $reason (Ready to connect)", connected = false)
             binding.tvTransportBadge.visibility = View.GONE
         }
     }
