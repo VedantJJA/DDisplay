@@ -64,13 +64,9 @@ class MainActivity : AppCompatActivity() {
             updateStatus(reason, connected = false)
         }
 
-        binding.btnConnectUsb.setOnClickListener {
-            updateStatus("Connecting via USB (127.0.0.1:7878)...", connected = false)
+        binding.btnConnect.setOnClickListener {
+            updateStatus("Connecting to PC...", connected = false)
             transportManager.connectUsb()
-        }
-
-        binding.btnConnectWifi.setOnClickListener {
-            startActivity(Intent(this, PairingActivity::class.java))
         }
 
         binding.btnSettings.setOnClickListener {

@@ -117,15 +117,7 @@
                     <!-- Status text -->
                     <TextBlock Text="{Binding StatusText}" Style="{StaticResource TextBody}"
                                Foreground="{StaticResource TextSecondaryBrush}"
-                               TextWrapping="Wrap" Margin="0,0,0,20"/>
-
-                    <!-- Action buttons -->
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="Connect" Style="{StaticResource PrimaryButton}"
-                                Margin="0,0,8,0" Click="Connect_Click"/>
-                        <Button Content="Disconnect" Style="{StaticResource SecondaryButton}"
-                                Click="Disconnect_Click"/>
-                    </StackPanel>
+                               TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 

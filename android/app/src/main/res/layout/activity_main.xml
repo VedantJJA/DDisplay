@@ -91,7 +91,7 @@
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
-    <!-- Connect buttons -->
+    <!-- Connect button -->
     <LinearLayout
         android:id="@+id/layoutButtons"
         android:layout_width="0dp"
@@ -103,23 +103,15 @@
         app:layout_constraintTop_toBottomOf="@id/cardStatus">
 
         <Button
-            android:id="@+id/btnConnectUsb"
+            android:id="@+id/btnConnect"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/action_connect_usb"
+            android:layout_height="52dp"
+            android:text="Connect"
+            android:textSize="16sp"
+            android:textStyle="bold"
             android:textColor="@color/color_text_primary"
             android:backgroundTint="@color/color_accent"
-            app:cornerRadius="8dp"
-            android:layout_marginBottom="10dp"/>
-
-        <Button
-            android:id="@+id/btnConnectWifi"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/action_connect_wifi"
-            android:textColor="@color/color_accent"
-            android:backgroundTint="@color/color_surface_raised"
-            app:cornerRadius="8dp"/>
+            app:cornerRadius="10dp"/>
 
     </LinearLayout>
 

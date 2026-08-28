@@ -82,19 +82,4 @@ public partial class MainWindow : Window
         });
     }
 
-    private async void Connect_Click(object sender, RoutedEventArgs e)
-    {
-        if (Vm != null)
-        {
-            await Vm.ConnectAsync();
-        }
-    }
-
-    private async void Disconnect_Click(object sender, RoutedEventArgs e)
-    {
-        if (Vm != null)
-        {
-            await Vm.DisconnectAsync();
-        }
-    }
 }
