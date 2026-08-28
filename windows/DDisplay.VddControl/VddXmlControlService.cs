@@ -28,7 +28,11 @@ public sealed class VddXmlControlService : IVirtualDisplayService
     {
         try
         {
-            await RunPnputilAsync($"/enable-device \"{VddDeviceInstanceId}\"", cancellationToken);
+            var output = await RunPnputilAsync($"/enable-device \"{VddDeviceInstanceId}\"", cancellationToken);
+            if (output.Contains("Failed to enable") || output.Contains("Access is denied"))
+            {
+                throw new InvalidOperationException($"pnputil failed: {output}");
+            }
         }
         catch
         {
@@ -40,7 +44,11 @@ public sealed class VddXmlControlService : IVirtualDisplayService
     {
         try
         {
-            await RunPnputilAsync($"/disable-device \"{VddDeviceInstanceId}\"", cancellationToken);
+            var output = await RunPnputilAsync($"/disable-device \"{VddDeviceInstanceId}\"", cancellationToken);
+            if (output.Contains("Failed to disable") || output.Contains("Access is denied"))
+            {
+                throw new InvalidOperationException($"pnputil failed: {output}");
+            }
         }
         catch
         {
@@ -98,11 +106,14 @@ public sealed class VddXmlControlService : IVirtualDisplayService
     {
         try
         {
-            await RunPnputilAsync($"/restart-device \"{VddDeviceInstanceId}\"", cancellationToken);
+            var output = await RunPnputilAsync($"/restart-device \"{VddDeviceInstanceId}\"", cancellationToken);
+            if (output.Contains("Failed to restart") || output.Contains("Access is denied"))
+            {
+                throw new InvalidOperationException($"pnputil failed: {output}");
+            }
         }
         catch
         {
-            // If pnputil restart is unavailable, use script
             await RunDriverScriptAsync("enable-display.bat", cancellationToken);
         }
     }
@@ -121,7 +132,8 @@ public sealed class VddXmlControlService : IVirtualDisplayService
             {
                 var psi = new ProcessStartInfo
                 {
-                    FileName = fullScriptPath,
+                    FileName = "cmd.exe",
+                    Arguments = $"/c \"{fullScriptPath}\"",
                     UseShellExecute = true,
                     Verb = "runas",
                     WindowStyle = ProcessWindowStyle.Hidden,
@@ -207,13 +219,6 @@ public sealed class VddXmlControlService : IVirtualDisplayService
 
         var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
         await process.WaitForExitAsync(cancellationToken);
-
-        if (process.ExitCode != 0)
-        {
-            var err = await process.StandardError.ReadToEndAsync(cancellationToken);
-            throw new InvalidOperationException(
-                $"pnputil.exe exited with code {process.ExitCode}: {err}");
-        }
 
         return output;
     }
