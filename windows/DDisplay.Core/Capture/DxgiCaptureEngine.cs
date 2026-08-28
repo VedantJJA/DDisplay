@@ -1,19 +1,13 @@
+using System.Runtime.InteropServices;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
-using System.Runtime.InteropServices;
 
 namespace DDisplay.Core.Capture;
 
 /// <summary>
-/// Captures the virtual monitor's framebuffer using DXGI Desktop Duplication API.
-///
-/// This is the primary capture path for Phase 2. It creates a D3D11 device on the
-/// same adapter as the virtual monitor and acquires IDXGIOutputDuplication on the
-/// specific output matching the requested device name.
-///
-/// TODO: Phase 0 must confirm that IDXGIOutputDuplication works on the VDD's headless
-/// adapter. If it does not, fall back to Windows.Graphics.Capture (see plan.md section 7.2).
+/// Captures the virtual/secondary monitor's framebuffer using DXGI Desktop Duplication API.
+/// Enumerates all adapters to find the extended virtual monitor, and keeps the stream active.
 /// </summary>
 public sealed class DxgiCaptureEngine : ICaptureEngine
 {
@@ -21,6 +15,7 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
     private ID3D11Device? _d3dDevice;
     private ID3D11DeviceContext? _d3dContext;
     private ID3D11Texture2D? _stagingTexture;
+    private byte[]? _lastFrameBgra;
     private bool _capturing;
 
     public int WidthPx { get; private set; }
@@ -31,48 +26,80 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
 
     public Task InitializeAsync(string monitorDeviceName, CancellationToken cancellationToken = default)
     {
-        // Create D3D11 device.
-        var featureLevels = new[] { FeatureLevel.Level_11_0, FeatureLevel.Level_10_1 };
+        using var factory = DXGI.CreateDXGIFactory1<IDXGIFactory1>();
+        IDXGIAdapter1? selectedAdapter = null;
+        IDXGIOutput? targetOutput = null;
+
+        var allOutputs = new List<(IDXGIAdapter1 Adapter, IDXGIOutput Output, OutputDescription Desc)>();
+
+        // Enumerate all outputs across all adapters
+        for (uint a = 0; factory.EnumAdapters1(a, out var adapter).Success; a++)
+        {
+            for (uint o = 0; adapter.EnumOutputs(o, out var output).Success; o++)
+            {
+                allOutputs.Add((adapter, output, output.Description));
+            }
+        }
+
+        if (allOutputs.Count == 0)
+        {
+            throw new InvalidOperationException("No display outputs found on any DXGI adapter.");
+        }
+
+        // 1. If monitor name specified, match it
+        if (!string.IsNullOrEmpty(monitorDeviceName))
+        {
+            var match = allOutputs.FirstOrDefault(x => x.Desc.DeviceName.Equals(monitorDeviceName, StringComparison.OrdinalIgnoreCase));
+            if (match.Output != null)
+            {
+                selectedAdapter = match.Adapter;
+                targetOutput = match.Output;
+            }
+        }
+
+        // 2. Otherwise prefer the second/extended monitor (non-primary), or output 0 if only 1 exists
+        if (targetOutput is null)
+        {
+            if (allOutputs.Count > 1)
+            {
+                // Choose the second output
+                selectedAdapter = allOutputs[1].Adapter;
+                targetOutput = allOutputs[1].Output;
+            }
+            else
+            {
+                selectedAdapter = allOutputs[0].Adapter;
+                targetOutput = allOutputs[0].Output;
+            }
+        }
+
+        var desc = targetOutput.Description;
+        WidthPx = desc.DesktopCoordinates.Right - desc.DesktopCoordinates.Left;
+        HeightPx = desc.DesktopCoordinates.Bottom - desc.DesktopCoordinates.Top;
+
+        // Clean up unused outputs
+        foreach (var item in allOutputs)
+        {
+            if (item.Output != targetOutput) item.Output.Dispose();
+            if (item.Adapter != selectedAdapter) item.Adapter.Dispose();
+        }
+
+        // Create D3D11 device on the chosen adapter
+        var featureLevels = new[] { FeatureLevel.Level_11_0, FeatureLevel.Level_10_1, FeatureLevel.Level_10_0 };
         D3D11.D3D11CreateDevice(
-            null,
-            DriverType.Hardware,
+            selectedAdapter,
+            DriverType.Unknown,
             DeviceCreationFlags.None,
             featureLevels,
             out _d3dDevice!,
             out _d3dContext!);
 
-        // Find the output matching the monitor device name.
-        using var dxgiDevice = _d3dDevice.QueryInterface<IDXGIDevice>();
-        using var adapter = dxgiDevice.GetAdapter();
-
-        IDXGIOutput? targetOutput = null;
-        for (uint i = 0; ; i++)
-        {
-            if (adapter.EnumOutputs(i, out var output).Failure)
-                break;
-
-            var desc = output!.Description;
-            if (string.IsNullOrEmpty(monitorDeviceName) ||
-                desc.DeviceName.Equals(monitorDeviceName, StringComparison.OrdinalIgnoreCase))
-            {
-                targetOutput = output;
-                WidthPx = desc.DesktopCoordinates.Right - desc.DesktopCoordinates.Left;
-                HeightPx = desc.DesktopCoordinates.Bottom - desc.DesktopCoordinates.Top;
-                break;
-            }
-
-            output.Dispose();
-        }
-
-        if (targetOutput is null)
-            throw new InvalidOperationException(
-                $"Monitor '{monitorDeviceName}' not found in DXGI output enumeration.");
-
-        using var output1 = targetOutput.QueryInterface<IDXGIOutput1>();
+        using var output1 = targetOutput!.QueryInterface<IDXGIOutput1>();
         _duplication = output1.DuplicateOutput(_d3dDevice);
         targetOutput.Dispose();
+        selectedAdapter!.Dispose();
 
-        // Create a staging (CPU-readable) texture using correct Vortice 3.x API surface.
+        // Create staging (CPU-readable) texture
         var texDesc = new Texture2DDescription
         {
             Width = (uint)WidthPx,
@@ -86,6 +113,7 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
             CPUAccessFlags = CpuAccessFlags.Read,
         };
         _stagingTexture = _d3dDevice.CreateTexture2D(texDesc);
+        _lastFrameBgra = new byte[WidthPx * HeightPx * 4];
 
         return Task.CompletedTask;
     }
@@ -99,28 +127,24 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
 
         await Task.Run(() =>
         {
+            long lastSentTimestamp = 0;
+
             while (!cancellationToken.IsCancellationRequested && _capturing)
             {
                 try
                 {
                     var result = _duplication!.AcquireNextFrame(
-                        100, // timeout ms
+                        50, // 50ms timeout
                         out var frameInfo,
                         out var desktopResource);
 
-                    if (result.Failure)
-                    {
-                        // DXGI_ERROR_WAIT_TIMEOUT is normal when screen is idle.
-                        if (result.Code == unchecked((int)0x887A0027)) continue;
-                        throw new InvalidOperationException($"AcquireNextFrame failed: 0x{result.Code:X8}");
-                    }
+                    long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-                    if (frameInfo.LastPresentTime > 0)
+                    if (result.Success && desktopResource != null)
                     {
-                        using var texture = desktopResource!.QueryInterface<ID3D11Texture2D>();
+                        using var texture = desktopResource.QueryInterface<ID3D11Texture2D>();
                         _d3dContext!.CopyResource(_stagingTexture!, texture);
 
-                        // Qualify MapFlags to resolve ambiguity between Vortice.DXGI and Vortice.Direct3D11.
                         var mapped = _d3dContext.Map(_stagingTexture!, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
                         try
                         {
@@ -135,26 +159,48 @@ public sealed class DxgiCaptureEngine : ICaptureEngine
                                     WidthPx * 4);
                             }
 
+                            _lastFrameBgra = bgraData;
+                            lastSentTimestamp = now;
+
                             FrameAvailable?.Invoke(this, new CaptureFrameEventArgs
                             {
                                 BgraData = bgraData,
                                 WidthPx = WidthPx,
                                 HeightPx = HeightPx,
-                                TimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                                TimestampMs = now,
                             });
                         }
                         finally
                         {
                             _d3dContext.Unmap(_stagingTexture!, 0);
                         }
-                    }
 
-                    desktopResource!.Dispose();
-                    _duplication!.ReleaseFrame();
+                        desktopResource.Dispose();
+                        _duplication.ReleaseFrame();
+                    }
+                    else
+                    {
+                        // On timeout / idle desktop: keep pushing frames at ~10 FPS heartbeat so client decoder stays active
+                        if (_lastFrameBgra != null && (now - lastSentTimestamp > 100))
+                        {
+                            lastSentTimestamp = now;
+                            FrameAvailable?.Invoke(this, new CaptureFrameEventArgs
+                            {
+                                BgraData = _lastFrameBgra,
+                                WidthPx = WidthPx,
+                                HeightPx = HeightPx,
+                                TimestampMs = now,
+                            });
+                        }
+                    }
                 }
                 catch (OperationCanceledException)
                 {
                     break;
+                }
+                catch (Exception)
+                {
+                    // Ignore transient capture anomalies
                 }
             }
         }, cancellationToken);

@@ -82,14 +82,19 @@ public partial class MainWindow : Window
         });
     }
 
-    private async void ForceUsb_Click(object sender, RoutedEventArgs e)
+    private async void Connect_Click(object sender, RoutedEventArgs e)
     {
-        // TODO: wire through MainViewModel when TransportManager exposes ForceTransportAsync.
-        await Task.CompletedTask;
+        if (Vm != null)
+        {
+            await Vm.ConnectAsync();
+        }
     }
 
-    private async void ForceWifi_Click(object sender, RoutedEventArgs e)
+    private async void Disconnect_Click(object sender, RoutedEventArgs e)
     {
-        await Task.CompletedTask;
+        if (Vm != null)
+        {
+            await Vm.DisconnectAsync();
+        }
     }
 }

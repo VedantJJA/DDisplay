@@ -121,10 +121,10 @@
 
                     <!-- Action buttons -->
                     <StackPanel Orientation="Horizontal">
-                        <Button Content="Force USB" Style="{StaticResource SecondaryButton}"
-                                Margin="0,0,8,0" Click="ForceUsb_Click"/>
-                        <Button Content="Force Wi-Fi" Style="{StaticResource SecondaryButton}"
-                                Click="ForceWifi_Click"/>
+                        <Button Content="Connect" Style="{StaticResource PrimaryButton}"
+                                Margin="0,0,8,0" Click="Connect_Click"/>
+                        <Button Content="Disconnect" Style="{StaticResource SecondaryButton}"
+                                Click="Disconnect_Click"/>
                     </StackPanel>
                 </StackPanel>
             </Border>

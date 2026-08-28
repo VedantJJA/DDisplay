@@ -71,6 +71,40 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => SetField(ref _isStreaming, value);
     }
 
+    public async Task ConnectAsync()
+    {
+        StatusText = "Connecting to device...";
+        try
+        {
+            await _transportManager.ForceTransportAsync(TransportType.AdbUsb);
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Connection failed: {ex.Message}";
+        }
+    }
+
+    public async Task DisconnectAsync()
+    {
+        StatusText = "Disconnecting...";
+        if (_sessionCoordinator != null)
+        {
+            await _sessionCoordinator.DisposeAsync();
+            _sessionCoordinator = null;
+        }
+
+        await _transportManager.StopMonitoringAsync();
+        await _vddService.DisableDisplayAsync();
+
+        IsConnected = false;
+        IsStreaming = false;
+        IsDisplayEnabled = false;
+        TransportLabel = "No transport";
+        StatusText = "Disconnected.";
+
+        _transportManager.StartMonitoring();
+    }
+
     public async Task ToggleDisplayAsync()
     {
         if (IsDisplayEnabled)
