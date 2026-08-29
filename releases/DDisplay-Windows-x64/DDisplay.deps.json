@@ -1,0 +1,413 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "DDisplay/1.0.0": {
+        "dependencies": {
+          "DDisplay.Core": "1.0.0",
+          "DDisplay.VddControl": "1.0.0",
+          "QRCoder": "1.8.0",
+          "System.Text.Json": "9.0.1",
+          "runtimepack.Microsoft.Windows.SDK.NET.Ref": "10.0.22621.57"
+        },
+        "runtime": {
+          "DDisplay.dll": {}
+        }
+      },
+      "runtimepack.Microsoft.Windows.SDK.NET.Ref/10.0.22621.57": {
+        "runtime": {
+          "Microsoft.Windows.SDK.NET.dll": {
+            "assemblyVersion": "10.0.22621.38",
+            "fileVersion": "10.0.22621.55"
+          },
+          "WinRT.Runtime.dll": {
+            "assemblyVersion": "2.2.0.0",
+            "fileVersion": "2.2.0.48161"
+          }
+        }
+      },
+      "Common.Logging/3.4.1": {
+        "dependencies": {
+          "Common.Logging.Core": "3.4.1"
+        },
+        "runtime": {
+          "lib/netstandard1.3/Common.Logging.dll": {
+            "assemblyVersion": "3.4.1.0",
+            "fileVersion": "3.4.0.0"
+          }
+        }
+      },
+      "Common.Logging.Core/3.4.1": {
+        "runtime": {
+          "lib/netstandard1.0/Common.Logging.Core.dll": {
+            "assemblyVersion": "3.4.1.0",
+            "fileVersion": "3.4.0.0"
+          }
+        }
+      },
+      "IPNetwork2/2.1.2": {
+        "runtime": {
+          "lib/netstandard1.3/System.Net.IPNetwork.dll": {
+            "assemblyVersion": "2.1.2.0",
+            "fileVersion": "2.1.2.0"
+          }
+        }
+      },
+      "Makaretu.Dns/2.0.1": {
+        "dependencies": {
+          "SimpleBase": "1.3.1"
+        },
+        "runtime": {
+          "lib/netstandard2.0/Makaretu.Dns.dll": {
+            "assemblyVersion": "2.0.1.0",
+            "fileVersion": "2.0.1.0"
+          }
+        }
+      },
+      "Makaretu.Dns.Multicast/0.27.0": {
+        "dependencies": {
+          "Common.Logging": "3.4.1",
+          "IPNetwork2": "2.1.2",
+          "Makaretu.Dns": "2.0.1",
+          "Tmds.LibC": "0.2.0"
+        },
+        "runtime": {
+          "lib/netstandard2.0/Makaretu.Dns.Multicast.dll": {
+            "assemblyVersion": "0.27.0.0",
+            "fileVersion": "0.27.0.0"
+          }
+        }
+      },
+      "QRCoder/1.8.0": {
+        "dependencies": {
+          "System.Drawing.Common": "8.0.8"
+        },
+        "runtime": {
+          "lib/net6.0/QRCoder.dll": {
+            "assemblyVersion": "1.8.0.0",
+            "fileVersion": "1.8.0.0"
+          }
+        }
+      },
+      "SharpGen.Runtime/2.4.2-beta": {
+        "dependencies": {
+          "System.Text.Json": "9.0.1"
+        },
+        "runtime": {
+          "lib/net8.0/SharpGen.Runtime.dll": {
+            "assemblyVersion": "2.4.2.0",
+            "fileVersion": "2.4.2.0"
+          }
+        }
+      },
+      "SharpGen.Runtime.COM/2.4.2-beta": {
+        "dependencies": {
+          "SharpGen.Runtime": "2.4.2-beta",
+          "System.Text.Json": "9.0.1"
+        },
+        "runtime": {
+          "lib/net8.0/SharpGen.Runtime.COM.dll": {
+            "assemblyVersion": "2.4.2.0",
+            "fileVersion": "2.4.2.0"
+          }
+        }
+      },
+      "SimpleBase/1.3.1": {
+        "runtime": {
+          "lib/netstandard1.3/SimpleBase.dll": {
+            "assemblyVersion": "1.3.1.0",
+            "fileVersion": "1.3.1.0"
+          }
+        }
+      },
+      "System.Drawing.Common/8.0.8": {
+        "runtime": {
+          "lib/net8.0/System.Drawing.Common.dll": {
+            "assemblyVersion": "8.0.0.0",
+            "fileVersion": "8.0.824.36606"
+          }
+        }
+      },
+      "System.IO.Pipelines/9.0.1": {
+        "runtime": {
+          "lib/net8.0/System.IO.Pipelines.dll": {
+            "assemblyVersion": "9.0.0.0",
+            "fileVersion": "9.0.124.61010"
+          }
+        }
+      },
+      "System.Text.Encodings.Web/9.0.1": {
+        "runtime": {
+          "lib/net8.0/System.Text.Encodings.Web.dll": {
+            "assemblyVersion": "9.0.0.0",
+            "fileVersion": "9.0.124.61010"
+          }
+        },
+        "runtimeTargets": {
+          "runtimes/browser/lib/net8.0/System.Text.Encodings.Web.dll": {
+            "rid": "browser",
+            "assetType": "runtime",
+            "assemblyVersion": "9.0.0.0",
+            "fileVersion": "9.0.124.61010"
+          }
+        }
+      },
+      "System.Text.Json/9.0.1": {
+        "dependencies": {
+          "System.IO.Pipelines": "9.0.1",
+          "System.Text.Encodings.Web": "9.0.1"
+        },
+        "runtime": {
+          "lib/net8.0/System.Text.Json.dll": {
+            "assemblyVersion": "9.0.0.0",
+            "fileVersion": "9.0.124.61010"
+          }
+        }
+      },
+      "Tmds.LibC/0.2.0": {
+        "runtimeTargets": {
+          "runtimes/linux-arm/lib/netstandard2.0/Tmds.LibC.dll": {
+            "rid": "linux-arm",
+            "assetType": "runtime",
+            "assemblyVersion": "0.2.0.0",
+            "fileVersion": "0.2.0.0"
+          },
+          "runtimes/linux-arm64/lib/netstandard2.0/Tmds.LibC.dll": {
+            "rid": "linux-arm64",
+            "assetType": "runtime",
+            "assemblyVersion": "0.2.0.0",
+            "fileVersion": "0.2.0.0"
+          },
+          "runtimes/linux-x64/lib/netstandard2.0/Tmds.LibC.dll": {
+            "rid": "linux-x64",
+            "assetType": "runtime",
+            "assemblyVersion": "0.2.0.0",
+            "fileVersion": "0.2.0.0"
+          }
+        }
+      },
+      "Vortice.Direct3D11/3.8.3": {
+        "dependencies": {
+          "SharpGen.Runtime": "2.4.2-beta",
+          "Vortice.DXGI": "3.8.3"
+        },
+        "runtime": {
+          "lib/net8.0/Vortice.Direct3D11.dll": {
+            "assemblyVersion": "3.8.3.0",
+            "fileVersion": "3.8.3.0"
+          }
+        }
+      },
+      "Vortice.DirectX/3.8.3": {
+        "dependencies": {
+          "SharpGen.Runtime": "2.4.2-beta",
+          "SharpGen.Runtime.COM": "2.4.2-beta",
+          "Vortice.Mathematics": "2.1.0"
+        },
+        "runtime": {
+          "lib/net8.0-windows10.0.22621/Vortice.DirectX.dll": {
+            "assemblyVersion": "3.8.3.0",
+            "fileVersion": "3.8.3.0"
+          }
+        }
+      },
+      "Vortice.DXGI/3.8.3": {
+        "dependencies": {
+          "SharpGen.Runtime": "2.4.2-beta",
+          "Vortice.DirectX": "3.8.3"
+        },
+        "runtime": {
+          "lib/net8.0-windows10.0.22621/Vortice.DXGI.dll": {
+            "assemblyVersion": "3.8.3.0",
+            "fileVersion": "3.8.3.0"
+          }
+        }
+      },
+      "Vortice.Mathematics/2.1.0": {
+        "runtime": {
+          "lib/net8.0/Vortice.Mathematics.dll": {
+            "assemblyVersion": "2.1.0.0",
+            "fileVersion": "2.1.0.0"
+          }
+        }
+      },
+      "DDisplay.Core/1.0.0": {
+        "dependencies": {
+          "DDisplay.VddControl": "1.0.0",
+          "Makaretu.Dns.Multicast": "0.27.0",
+          "System.Drawing.Common": "8.0.8",
+          "System.Text.Json": "9.0.1",
+          "Vortice.DXGI": "3.8.3",
+          "Vortice.Direct3D11": "3.8.3",
+          "Vortice.DirectX": "3.8.3"
+        },
+        "runtime": {
+          "DDisplay.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "DDisplay.VddControl/1.0.0": {
+        "runtime": {
+          "DDisplay.VddControl.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "DDisplay/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "runtimepack.Microsoft.Windows.SDK.NET.Ref/10.0.22621.57": {
+      "type": "runtimepack",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Common.Logging/3.4.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-5eZ/vgEOqzLg4PypZqnJ+wMhhgHyckicbZY4iDxqQ4FtOz0CpdYZ0xQ78aszMzeAJZiLLb5VdR9tPfunVQLz6g==",
+      "path": "common.logging/3.4.1",
+      "hashPath": "common.logging.3.4.1.nupkg.sha512"
+    },
+    "Common.Logging.Core/3.4.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-wLHldZHvxsSD6Ahonfj00/SkfHfKqO+YT6jsUwVm8Rch1REL9IArHAcSLXxYxYfu5/4ydGtmXvOtaH3AkVPu0A==",
+      "path": "common.logging.core/3.4.1",
+      "hashPath": "common.logging.core.3.4.1.nupkg.sha512"
+    },
+    "IPNetwork2/2.1.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-DZF2SbtyqukkLSzyu0KqcXUBdhDXQ/K3QWM27vlvdPo3W+iI81pgUCNTwyynNyVc5Q9AIn0znFVVhHGbhiofUg==",
+      "path": "ipnetwork2/2.1.2",
+      "hashPath": "ipnetwork2.2.1.2.nupkg.sha512"
+    },
+    "Makaretu.Dns/2.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-qe/5w5Q/i2Xz2ZnCq3E49kLAtVFRuuBn40C1mQPWbLDwlHM0KVDzCkFqwxDedv7JgQis66Z9AZKyo1zCTRrdYA==",
+      "path": "makaretu.dns/2.0.1",
+      "hashPath": "makaretu.dns.2.0.1.nupkg.sha512"
+    },
+    "Makaretu.Dns.Multicast/0.27.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-MTMq3vca9yw8sMW0knox/lZcAkDghmH6FVLTRInJZWbuYE99QI/9k9EujsXusWQ8oDySXb/gX92bfZipKehQgw==",
+      "path": "makaretu.dns.multicast/0.27.0",
+      "hashPath": "makaretu.dns.multicast.0.27.0.nupkg.sha512"
+    },
+    "QRCoder/1.8.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-RuvX3PEXU6pbY/I5ItAk800jm62r+YnoPLgyS2WTgwxkOnGkOfU9ORiipHUF0LkLyqM8rlroUCA319JjRYfRFQ==",
+      "path": "qrcoder/1.8.0",
+      "hashPath": "qrcoder.1.8.0.nupkg.sha512"
+    },
+    "SharpGen.Runtime/2.4.2-beta": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-niTtWAUov1F7wZGAlVeEvW+Tnqvg5yTmhI7rxmYu2Utoyu2TbC9tWWpUpMs0PQg5lu5svoYpCAztNjxCqMFP/w==",
+      "path": "sharpgen.runtime/2.4.2-beta",
+      "hashPath": "sharpgen.runtime.2.4.2-beta.nupkg.sha512"
+    },
+    "SharpGen.Runtime.COM/2.4.2-beta": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-9lxDFMiepqo3lJQzMSjECCIONeCc2f3Drokgj6HtrTLZcJSftNgcLbD6/iXYj2iphkwgrZb1oLsDOZxoFZkawQ==",
+      "path": "sharpgen.runtime.com/2.4.2-beta",
+      "hashPath": "sharpgen.runtime.com.2.4.2-beta.nupkg.sha512"
+    },
+    "SimpleBase/1.3.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-TqqQc+WFg3s10/PdnI2Dio0U7xEmVXhkf+ey4tOGZzjyd054rnNOLNVahJhMYmfBQdS7/jkVqC8xzLm/bkR3EA==",
+      "path": "simplebase/1.3.1",
+      "hashPath": "simplebase.1.3.1.nupkg.sha512"
+    },
+    "System.Drawing.Common/8.0.8": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-4ZM1wvLjz9nVVExsfPAaSl/qOvU+QNedJL5rQ+2Wbow+iGeyO0e7XN07707rMBgaffEeeLrCZBwC0oHUuvRdPw==",
+      "path": "system.drawing.common/8.0.8",
+      "hashPath": "system.drawing.common.8.0.8.nupkg.sha512"
+    },
+    "System.IO.Pipelines/9.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-uXf5o8eV/gtzDQY4lGROLFMWQvcViKcF8o4Q6KpIOjloAQXrnscQSu6gTxYJMHuNJnh7szIF9AzkaEq+zDLoEg==",
+      "path": "system.io.pipelines/9.0.1",
+      "hashPath": "system.io.pipelines.9.0.1.nupkg.sha512"
+    },
+    "System.Text.Encodings.Web/9.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-XkspqduP2t1e1x2vBUAD/xZ5ZDvmywuUwsmB93MvyQLospJfqtX0GsR/kU0vUL2h4kmvf777z3txV2W4NrQ9Qg==",
+      "path": "system.text.encodings.web/9.0.1",
+      "hashPath": "system.text.encodings.web.9.0.1.nupkg.sha512"
+    },
+    "System.Text.Json/9.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-eqWHDZqYPv1PvuvoIIx5pF74plL3iEOZOl/0kQP+Y0TEbtgNnM2W6k8h8EPYs+LTJZsXuWa92n5W5sHTWvE3VA==",
+      "path": "system.text.json/9.0.1",
+      "hashPath": "system.text.json.9.0.1.nupkg.sha512"
+    },
+    "Tmds.LibC/0.2.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-+RvLuNHOLW7cxzgDe9yHLoayBgjsuH2/gJtJnuVMxweKrxxYT6TwQNAmt06SFWpjwk68aRcwwD4FfMMA6tZvVA==",
+      "path": "tmds.libc/0.2.0",
+      "hashPath": "tmds.libc.0.2.0.nupkg.sha512"
+    },
+    "Vortice.Direct3D11/3.8.3": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-JgFUswu2mgrSwcd0KRF2AnfeE5VbMEgcicmxPD1g2yXyomPIHbnX3wldBNHPOzzD0URC1WJ/pO1ymfi3imZwvg==",
+      "path": "vortice.direct3d11/3.8.3",
+      "hashPath": "vortice.direct3d11.3.8.3.nupkg.sha512"
+    },
+    "Vortice.DirectX/3.8.3": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-nKwSavv0w5rDF7prSefqAVPDcTyqrfZxKFMVfttiXPfm62VdA/1d+b3PhCZpW4xO7jXczXDwjQdWgD1zGsvM8w==",
+      "path": "vortice.directx/3.8.3",
+      "hashPath": "vortice.directx.3.8.3.nupkg.sha512"
+    },
+    "Vortice.DXGI/3.8.3": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-MbAUnTeQ6WD99ctAdrj5CQO2I7oaax0Kt2eVdWSUj0bYP9Ed0726+s7dIHe4+tqhpmINW/dcPt0mNtc72o+E0w==",
+      "path": "vortice.dxgi/3.8.3",
+      "hashPath": "vortice.dxgi.3.8.3.nupkg.sha512"
+    },
+    "Vortice.Mathematics/2.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-KK+SjNSuKdP+zbavekubi+vaeb1Jo4k87ZF6CMkVWjr6RjJwc8peVtmgzXXDIMy4ZC3ZISyk3llY3q65ISOkBQ==",
+      "path": "vortice.mathematics/2.1.0",
+      "hashPath": "vortice.mathematics.2.1.0.nupkg.sha512"
+    },
+    "DDisplay.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "DDisplay.VddControl/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

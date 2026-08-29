@@ -46,20 +46,20 @@ android/captures/
 android/.externalNativeBuild/
 android/.cxx/
 android/keystore.properties
-*.apk
 *.aab
 *.ap_
 *.dex
+
+# Default ignore APKs in build tree, but allow explicit release bundles
+android/app/build/**/*.apk
+!releases/
+!releases/**
 
 # OS
 Thumbs.db
 .DS_Store
 desktop.ini
 ehthumbs.db
-
-# ADB / platform-tools (bundled binaries are in version control, build outputs are not)
-windows/DDisplay.App/platform-tools/*.exe
-windows/DDisplay.App/platform-tools/*.dll
 
 # Secrets
 *.pfx
